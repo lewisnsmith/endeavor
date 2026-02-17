@@ -1,0 +1,24 @@
+{
+  "name": "endeavor-pm-ide",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Endeavor monorepo for desktop app, MCP daemon, and shared packages.",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws --if-present build",
+    "typecheck": "npm run -ws --if-present typecheck",
+    "clean": "npm run -ws --if-present clean",
+    "dev:desktop": "npm --workspace @endeavor/desktop run dev",
+    "dev:daemon": "npm --workspace @endeavor/mcp-daemon run dev",
+    "dev:cli": "npm --workspace @endeavor/cli run dev"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2"
+  }
+}
+
