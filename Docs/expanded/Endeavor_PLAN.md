@@ -153,7 +153,7 @@ Context syncs automatically. Token overhead under 1,500 tokens.
 
 **What I'm shipping at the end of Phase 1:**
 - `@endeavor/plugin` on npm
-- Works with Claude Desktop and Cursor out of the box
+- Works with Claude Desktop and Antigravity and Web Browser LLMs out of the box
 - `endeavor` CLI with setup wizard
 - Benchmarks published showing token reduction
 - Tests that actually cover the important paths
