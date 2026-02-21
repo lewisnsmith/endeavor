@@ -240,16 +240,12 @@ Week 7-9 rough breakdown:
 
 ---
 
-## Phase 4: Project Management Agent (post-launch, Pro tier)
+## Phase 4: Project Management Agent, Messaging & Notifications (post-launch, Pro tier)
 
 After the core product ships and has real users, I want to add an active
-orchestration layer. Instead of passively making context available, this agent:
-
-- Helps you structure a new project from a rough description
-- Routes tasks to the right AI tool based on what it's good at
-- Syncs updated context documents to all connected tools proactively
-- Monitors progress and surfaces when things are off-track
-- Generates status reports from accumulated project knowledge
+orchestration layer. Instead of passively making context available, this agent
+helps you structure projects, surfaces blockers, and generates reports from
+accumulated project knowledge.
 
 This is the feature that could support a paid tier. It requires ongoing LLM
 calls (compute cost), creates real lock-in through accumulated project history,
@@ -257,6 +253,209 @@ and delivers genuinely different value from the free layer.
 
 Won't build this until there are real users with real feedback. The design
 should come from watching how people actually use the free version.
+
+### Guiding principles for the agent layer
+
+1. **Read-only first, write later**
+   Start with an agent that *observes* and *suggests* rather than automatically
+   editing files or firing off expensive API calls. Earn trust before taking actions.
+
+2. **Use the same datastore**
+   The agent should not introduce a separate state store. It reads/writes from the
+   existing SQLite + knowledge graph. This keeps mental models simpler.
+
+3. **No surprise costs**
+   Agent reasoning will hit an LLM. That costs money. Make its calls explicit,
+   visible, and ideally configurable (budget caps, frequency).
+
+4. **Composable, not magical**
+   The agent should be a set of well-defined abilities ("structure project",
+   "summarize week", "suggest next steps", "sync docs"), not a black box that
+   claims to "manage everything". This keeps behavior debuggable.
+
+5. **Stay local as long as possible**
+   Orchestration logic runs locally. Only LLM calls go out. No central server.
+
+### 4.1 PM Agent (core loop)
+
+A background process that:
+- Understands the rough state of a project
+- Can generate a plan from a vague goal
+- Can periodically summarize what's happening
+- Can suggest next steps and highlight blockers
+
+Early versions **do not** auto-edit anything. They only read and suggest.
+
+#### Data model additions
+
+Most of what the agent needs already exists (`projects`, `knowledge`,
+`file_chunks`, `usage_logs`). Possible additions:
+
+```sql
+-- Agent runs (log of each invocation)
+CREATE TABLE agent_runs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id   TEXT NOT NULL,
+  type         TEXT NOT NULL,  -- "weekly_summary" | "plan" | "check_in" | ...
+  result_path  TEXT,           -- where the agent wrote its output (if any)
+  tokens_in    INTEGER,
+  tokens_out   INTEGER,
+  cost_usd     REAL,
+  timestamp    INTEGER,
+  FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+-- Blockers or alerts the agent has surfaced
+CREATE TABLE agent_alerts (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id   TEXT NOT NULL,
+  severity     TEXT NOT NULL,  -- "info" | "warning" | "error"
+  title        TEXT NOT NULL,
+  description  TEXT NOT NULL,
+  resolved     INTEGER DEFAULT 0,
+  created_at   INTEGER,
+  resolved_at  INTEGER,
+  FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+```
+
+#### Agent entrypoints
+
+- `endeavor agent plan` — take a project goal and produce a structured plan
+- `endeavor agent weekly` — summarize the last 7 days of work
+- `endeavor agent check-in` — given current state, suggest next actions
+- `endeavor agent status` — human-readable project status report
+
+In the desktop app, these show up as buttons ("Generate plan", "Weekly summary",
+"Suggest next steps", "Status report").
+
+Underlying code:
+
+```ts
+// pseudo-code
+async function runAgent(
+  projectId: string,
+  mode: 'plan' | 'weekly' | 'check_in' | 'status',
+  options?: AgentOptions
+): Promise<AgentResult> {
+  const state = await readProjectState(projectId);
+  const prompt = buildPrompt(state, mode, options);
+  const llmResult = await callLLM(prompt, options?.model);
+  const parsed = parseAgentOutput(llmResult, mode);
+
+  await logAgentRun({ projectId, mode, llmResult, cost: estimateCost(llmResult) });
+
+  if (mode === 'plan') {
+    await writePlanToProject(projectId, parsed.plan);
+  }
+
+  return parsed;
+}
+```
+
+The **readProjectState** call pulls in goals/vision from project docs, current
+tasks, recent knowledge entries, usage data, and optionally file info (changed
+files, test results).
+
+#### Where the agent writes
+
+The agent writes to explicit, human-readable files under a dedicated folder:
+
+```
+project/
+  agent/
+    plan.md
+    weekly-2026-02-25.md
+    status-2026-03-01.md
+```
+
+No hidden magic state. The desktop app just renders these.
+
+#### Safety / scope constraints (v1)
+
+- v1 agent **never edits code**
+- v1 agent **never makes tool calls on its own** (no automatic Claude requests)
+- v1 agent has a hard per-run token budget
+- Every run is triggered by an explicit user action (button or CLI)
+
+### 4.2 Agent Messaging / "Agent Inbox"
+
+A way for the agent to send/receive higher-level messages:
+
+- "I noticed you've run 3 experiments without logging variables."
+- "You said the goal was X, but recent commits are all about Y."
+- "You hit 80% of your API budget this week."
+
+These land in an **Agent Inbox** the user can check and triage (reuses
+`agent_alerts` — no separate table needed).
+
+**Surfaces:**
+- Desktop app: small badge in sidebar ("Agent: 3")
+- CLI: `endeavor agent inbox` to list, `endeavor agent resolve <id>` to clear
+
+**Message sources:**
+1. Scheduled agent runs (if scheduling is added later)
+2. Hooks from existing events (experiment logs, budget thresholds, failing tests)
+3. Manual triggers (`endeavor agent check-in` may generate inbox items)
+
+### 4.3 Notification System ("Noti")
+
+A small notification layer that listens for events and surfaces them without
+being annoying. Three levels:
+
+1. **Passive (default)** — shows up in the Agent Inbox only
+2. **Local push** — desktop notification, badge, or in-app toast
+3. **External** — email / Discord / etc. (later)
+
+**Events worth notifying about:**
+- Budget thresholds crossed (75%, 90%, 100%)
+- Long period of inactivity on a project (e.g., 7 days)
+- Tests failing repeatedly
+- Experiments logged without findings written
+- CONTEXT.md out of date (significant changes since last regen)
+
+Each can be toggled per project. The agent decides *what* matters and creates
+alerts; Noti decides *how/when* to surface them (inbox, toast, email, etc.).
+
+### 4.4 Implementation order
+
+#### Stage A — Agent (read-only)
+- Implement `agent_runs` and `agent_alerts` tables
+- Implement `readProjectState(projectId)`
+- Implement `runAgent(projectId, mode)` for: plan, weekly, check_in, status
+- CLI + minimal UI buttons
+- Agent writes markdown files under `project/agent/`
+
+#### Stage B — Agent Inbox
+- Reuse `agent_alerts` as the inbox
+- CLI: `endeavor agent inbox`, `endeavor agent resolve <id>`
+- Desktop UI: simple list with filters
+
+#### Stage C — Noti v0
+- Event emitter in plugin layer
+- Simple events: budget thresholds, inactivity
+- Write alerts for these events
+- Desktop app listens and shows toast + increments inbox badge
+
+#### Stage D — Light automation (optional)
+Only after using this myself for a while, and only if it feels safe:
+- Allow the agent to propose actions with structured diff/confirmation
+- User clicks to apply; actual edits via existing framework
+- No fully autonomous mode unless there's a very good reason
+
+### Phase 4 open questions
+
+- Where to configure agent/Noti behavior? Probably per-project in `endeavor.json` + global default.
+- How often should the agent run automatically? Weekly summary might be worth scheduling (opt-in).
+- Which LLM should power the agent? Claude for long structured output; GPT-4o is cheaper. Pluggable interface.
+- Is this overkill for solo users? Design so everything feels useful even for single-person projects.
+
+### What "done enough" looks like for Phase 4
+
+- `endeavor agent plan` on a new project produces a useful first-pass roadmap
+- `endeavor agent weekly` generates a summary that helps remember what changed
+- The inbox occasionally surfaces forgotten items (budget, unlogged experiments, stale tasks)
+- None of this feels pushy or spammy — it's there when you want it
 
 ---
 
