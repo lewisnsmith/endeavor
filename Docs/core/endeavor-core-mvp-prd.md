@@ -31,7 +31,11 @@ This is the **spine** everything else will build on.
 
 ## 2. Solution Overview
 
-**Endeavor Core** is a local "AI tool bus" with two faces:
+**Endeavor Core** is the **standard context layer and event bus** for every AI tool or agent that integrates with your projects. Any tool—MCP client, custom agent, CLI script, or future UI—connects through Core to read shared context and publish events to a single, unified timeline. Rather than each tool maintaining its own siloed memory, Core acts as the canonical source of project state that all participants share.
+
+Core is designed following **modern MCP meta-tool best practices for token efficiency**: it exposes a single, internally-routed tool instead of a large tool catalog, keeping per-request token overhead minimal (see *Anthropic, "Building Effective Agents,"* 2025 — meta-tool / bounded-context pattern).
+
+It presents two integration surfaces:
 
 1. **MCP meta-tool (stdio)**
    - Exposed as a single tool (e.g., `endeavor`) to MCP-capable clients (Claude Desktop, Cursor, Windsurf).
@@ -51,6 +55,7 @@ Everything runs on your machine, backed by a local SQLite + vector index. No clo
 - Make it easy for you to plug your own AI tools into a shared, efficient context layer.
 - Avoid MCP token overhead by using a single meta-tool.
 - Provide a clean, understandable codebase.
+- Provide a tiny integration surface (REST+MCP) that other tools/agents can implement to integrate with Endeavor as their context/logging layer.
 
 **Secondary:**
 - Be useful as a standalone open-source component.
@@ -185,7 +190,7 @@ Expose exactly one tool over MCP:
 }
 ```
 
-This follows the "meta-tool" / "bounded context" pattern recommended for token-efficient MCP: one tool, internal routing. 
+This follows the "meta-tool" / "bounded context" pattern recommended for token-efficient MCP: one tool, internal routing (*Anthropic, "Building Effective Agents,"* 2025; see also MCP specification guidance on minimizing tool-definition token cost).
 
 ### 6.2 Actions
 

@@ -7,13 +7,17 @@
 
 ---
 
-## 1. Vision
+## 1. Vision — The AI Project Cockpit / Hangar
 
-Endeavor Cockpit is a **project-centric, AI-native workspace** for builders who use multiple AI tools on the same project.
+Endeavor Cockpit is the **AI project cockpit / hangar**: the single application to house, manage, run, examine, modify, amend, fix, and track **all** AI tools, agents, and automations pertaining to a project.
 
 Core idea:
-- One project = one cockpit.
-- All AI tools that touch that project share context and contribute to a unified timeline.
+- **One cockpit per project**, containing:
+  - **Registered tools / agents** — every AI tool and agent active on the project, visible and manageable in one place.
+  - **Timeline** — an ordered stream of all AI interactions, commits, and key decisions.
+  - **Context** — the shared, token-efficient context block injected into every tool.
+  - **Token / cost usage** — per-tool, per-model spend and forecasting.
+- All AI tools that touch the project share context and contribute to the unified timeline.
 - You see what each tool did, when, and why.
 - You manage tasks, decisions, and AI usage in one place.
 
@@ -157,11 +161,25 @@ Those can be separate future documents.
 
 ---
 
-## 7. Definition of Done (Scaling Layer)
+## 7. Integration Strategy
+
+Endeavor Cockpit supports a tiered integration model so tools and agents of any maturity level can plug in:
+
+| Tier | What it covers | How it connects |
+|------|---------------|----------------|
+| **First-class** | MCP tools + your own GPT wrappers | Native MCP protocol and REST API — full context, logging, and orchestration out of the box. |
+| **Second tier** | Automation platforms (n8n, Zapier, Make) | Lightweight adapters that translate platform webhooks/actions into Endeavor Core events. |
+| **Community** | Specific SaaS tools (Notion, Linear, Slack, etc.) | Community-contributed adapters that map SaaS-specific APIs onto Endeavor's event and context model. |
+
+First-class integrations are the priority; second-tier and community adapters follow once the adapter interface is stable.
+
+---
+
+## 8. Definition of Done (Scaling Layer)
 
 - You can open the Cockpit, pick a project, and see:
   - A timeline of AI interactions from Endeavor Core.
   - The current context block that would be injected into AI tools.
-  - Simple stats on which tools you’ve used most for this project.
+  - Simple stats on which tools you've used most for this project.
   - A handful of tasks and decisions.
 - It's stable enough to use on your own active projects.
