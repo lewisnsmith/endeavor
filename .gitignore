@@ -10,4 +10,7 @@ yarn-error.log*
 pnpm-debug.log*
 .turbo/
 coverage/
+*.db
+*.db-wal
+*.db-shm
 
