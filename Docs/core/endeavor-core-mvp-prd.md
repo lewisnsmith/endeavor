@@ -69,8 +69,10 @@ Everything runs on your machine, backed by a local SQLite + vector index. No clo
 
 A project is a folder on disk (e.g. a repo, research notebook, or app). Endeavor Core tracks:
 - Path
-- Type (optional: `software`, `research`, `other`)
 - Created/updated timestamps
+- Type — **optional metadata only** (`software`, `research`, `other`). Does not change core behavior; every project gets the same indexing, context, and event pipeline.
+
+**Supported file types (any project):** `.ts`, `.py`, `.md`, `.json`, `.yaml`, `.csv`, `.tex`, `.ipynb`
 
 ### 4.2 Tools
 
@@ -315,6 +317,36 @@ Response:
 
 ---
 
+## 7.6 Auto-Capture Pipeline
+
+Endeavor Core captures project activity automatically — no manual `log` calls required for routine work.
+
+### 7.6.1 MCP Interceptor
+
+Every `tools/call` request that passes through the MCP server is logged automatically. The interceptor records:
+- Tool name, arguments, and timestamp
+- Response summary (truncated to stay within storage limits)
+- Originating client / session ID
+
+### 7.6.2 Rule-Based Classifier
+
+Each captured event is tagged by a lightweight rule engine:
+
+| Pattern | Tag |
+|---|---|
+| Tool call that changes project config or accepts/rejects a suggestion | `decision` |
+| Tool call followed by another call to the same tool within the session | `iteration` |
+| Tool call that produces new data, references, or search results | `finding` |
+| Everything else | `note` |
+
+Tags are stored in the `kind` column of the `events` table and are used by the context engine when ranking relevance.
+
+### 7.6.3 File-Change Correlation
+
+File changes detected within **60 seconds** of a tool call are automatically associated with that call and recorded as `iteration` events. This links code edits, document saves, and config changes back to the AI interaction that triggered them — without requiring explicit user annotation.
+
+---
+
 ## 8. Data Model
 
 SQLite tables (simplified):
@@ -381,7 +413,31 @@ CREATE TABLE usage_logs (
 - Optional `query`
 - Model info (to set token budgets)
 
-### 9.2 Steps
+### 9.2 Token Budget
+
+The context block is assembled to fit within a **~2,000-token default budget**, allocated as follows:
+
+| Section | ~Tokens | Contents |
+|---|---|---|
+| Header | 150 | Project name, path, type, created/updated |
+| Key decisions | 400 | Most recent and highest-relevance `decision` events |
+| File chunks | 900 | Semantically relevant code/doc snippets |
+| Active tasks | 300 | Open tasks and recent status changes |
+| Recent events | 250 | Last N events by timestamp |
+| **Total** | **~2,000** | |
+
+The budget is configurable per-client and can scale up for models with larger context windows.
+
+### 9.3 Session-Level Auto-Injection
+
+A **thin 150-token header block** is injected **once per MCP session**, not per tool call. This block contains:
+- Project identity (name, path)
+- Session start time
+- Number of events since last session
+
+Subsequent `endeavor` calls within the same session omit the header, reducing per-call overhead to near zero.
+
+### 9.4 Context Assembly Steps
 
 1. Identify relevant file chunks via semantic search.
 2. Identify recent relevant events (decisions, notes) using embeddings.
@@ -399,10 +455,13 @@ CREATE TABLE usage_logs (
 
 ## 10. Non-goals for MVP
 
-- No UI
-- No automatic modification of project files
-- No background agents
-- No complex scheduling
+- **No IDE** — Endeavor Core is a headless server; IDE integrations are post-core.
+- **No GitHub-like version control** — Core tracks events and context, not git history or diffs.
+- **No coding agent** — Core provides context to agents; it does not write or refactor code itself.
+- **No full cockpit UI** — A visual dashboard/cockpit is a separate, post-core component.
+- **No project management agent** — Automated planning, scheduling, or task assignment is out of scope.
+- No automatic modification of project files.
+- No complex scheduling.
 
 Just: **a clean MCP + REST core you can plug your existing tools into.**
 
