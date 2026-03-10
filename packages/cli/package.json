@@ -10,10 +10,13 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "lint": "eslint src",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@endeavor/shared-types": "workspace:*"
+    "@endeavor/shared-types": "*",
+    "@endeavor/integrations": "*",
+    "commander": "^13.1.0"
   }
 }
-
