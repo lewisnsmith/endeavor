@@ -16,7 +16,8 @@
     "clean": "npm run -ws --if-present clean",
     "dev:desktop": "npm --workspace @endeavor/desktop run dev",
     "dev:daemon": "npm --workspace @endeavor/mcp-daemon run dev",
-    "dev:cli": "npm --workspace @endeavor/cli run dev"
+    "dev:cli": "npm --workspace @endeavor/cli run dev",
+    "bootstrap": "bash scripts/bootstrap.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
