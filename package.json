@@ -1,23 +1,19 @@
 {
-  "name": "endeavor-pm-ide",
-  "version": "0.1.0",
+  "name": "endeavor",
+  "version": "0.2.0",
   "private": true,
-  "description": "Endeavor monorepo for desktop app, MCP daemon, and shared packages.",
+  "description": "Terminal-native coordination for parallel Claude Code work.",
   "workspaces": [
-    "apps/*",
-    "services/*",
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run -ws --if-present build",
+    "build": "npm --workspace @endeavor/core run build && npm --workspace @endeavor/cli --workspace @endeavor/daemon run build",
     "lint": "npm run -ws --if-present lint",
     "test": "npm run -ws --if-present test",
     "typecheck": "npm run -ws --if-present typecheck",
     "clean": "npm run -ws --if-present clean",
-    "dev:desktop": "npm --workspace @endeavor/desktop run dev",
-    "dev:daemon": "npm --workspace @endeavor/mcp-daemon run dev",
     "dev:cli": "npm --workspace @endeavor/cli run dev",
-    "bootstrap": "bash scripts/bootstrap.sh"
+    "dev:daemon": "npm --workspace @endeavor/daemon run dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -28,4 +24,3 @@
     "vitest": "^2.0.0"
   }
 }
-

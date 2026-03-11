@@ -1,11 +1,10 @@
 {
-  "name": "@endeavor/cli",
+  "name": "@endeavor/daemon",
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "endeavor": "dist/index.js"
-  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -15,7 +14,10 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@endeavor/core": "*",
-    "commander": "^13.1.0"
+    "@endeavor/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
   }
 }

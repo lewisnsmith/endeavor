@@ -1,80 +1,63 @@
 # Endeavor
 
-Endeavor is a **local-first AI tool coordination platform**:
-- A background daemon indexes your codebase and serves **relevant project context** via MCP.
-- A desktop app provides a **single mission-control UI** for multiple AI tools (ChatGPT, Claude, etc.).
-- A unified usage ledger tracks **tokens + cost** across tools and projects.
+Terminal-native coordination for parallel Claude Code work.
 
-This repo is the monorepo for the daemon, desktop app, CLI, and shared packages.
+When you're running 2-4 Claude Code sessions or subagents in parallel, Endeavor tracks:
+- **Who** is working on **what**
+- **What** was decided and why
+- **What** depends on what
+- **What** handoff is pending
+- **What** makes a task done
 
-## Status
+## Quick start
 
-Pre-development / scaffolded workspace. Product requirements and execution backlog live in `Docs/`.
+```bash
+npm install -g @endeavor/cli    # or use npx
 
-## Docs
+cd your-project
+endeavor init
+endeavor assign "Add auth middleware" --to @agent-1 --branch feature/auth
+endeavor assign "Write API tests" --criteria "all endpoints covered"
+endeavor depend w_002 w_001      # tests depend on auth
+endeavor status                  # see the full picture
+```
 
-- PRD: `Docs/Endeavor_PRD_v2.md`
-- Execution backlog: `Docs/Execution_Backlog_v1.md`
+## Commands
 
-## Architecture (High Level)
+| Command | What it does |
+|---------|-------------|
+| `endeavor init` | Initialize coordination in current project |
+| `endeavor status` | Show all work items, handoffs, recent decisions |
+| `endeavor assign <desc>` | Create a work item, optionally assign to an agent |
+| `endeavor decide <summary>` | Record a decision with rationale |
+| `endeavor depend <item> <on>` | Declare a blocking dependency |
+| `endeavor handoff <to> <summary>` | Hand off context to another agent/session |
+| `endeavor done <item>` | Check criteria and mark complete |
+| `endeavor next` | Show what's unblocked and ready |
 
-**Core facilitator:** `services/mcp-daemon` is the system of record.
+Every command supports `--json` for machine consumption.
 
-- Watches selected projects (file events)
-- Chunks/indexes content
-- Generates embeddings + vector search
-- Builds token-budgeted context packs
-- Exposes:
-  - MCP stdio server (`getContext`, `logUsage`, `listProjects`, `ping`)
-  - Internal REST + WebSocket APIs for the desktop app
+## How it works
 
-## Monorepo Layout
+- **Local-first**: Single SQLite file at `.endeavor/endeavor.db` in your project root
+- **Worktree-aware**: All git worktrees share one coordination database
+- **Concurrent-safe**: WAL mode handles parallel agent access
+- **No daemon required**: Each command opens the DB, does its work, exits
 
-- `apps/desktop`: desktop application (Electron/React target).
-- `services/mcp-daemon`: background daemon (watch/index/search + MCP/REST/WS).
-- `packages/shared-types`: shared DTOs/contracts used everywhere.
-- `packages/context-engine`: context selection/compression/token budgeting logic.
-- `packages/cli`: `endeavor` CLI entrypoint.
-- `packages/integrations`: helpers for Claude Desktop / Cursor configuration.
+## Design philosophy
 
-## Prerequisites
+Endeavor is not a project manager, memory layer, or AI dashboard.
+It's the lightest possible coordination layer that lets parallel Claude Code
+sessions stay aware of each other without leaving the terminal.
 
-- Node.js (recommended: current LTS)
-- npm (workspaces enabled)
-
-## Quick Start
+## Development
 
 ```bash
 npm install
 npm run typecheck
 npm run build
+npm run test
 ```
-
-Run the current skeleton entrypoints:
-
-```bash
-npm run dev:daemon
-npm run dev:desktop
-npm run dev:cli
-```
-
-## Environment Variables (Planned)
-
-The PRD expects these to exist (exact wiring will be implemented during development):
-
-- `OPENAI_API_KEY` (embeddings + ChatGPT API)
-- `ANTHROPIC_API_KEY` (Claude API)
-- `PINECONE_API_KEY` + index/env settings (vector search; opt-in)
-
-## Development Principles
-
-- Local-first by default (projects + metadata stored locally).
-- Shared contracts in `packages/shared-types` to keep daemon/desktop/CLI aligned.
-- Provider integrations behind adapters so dependencies can change without rewriting the app.
-
-## Contributing
-
-At this stage, issues/PRs should focus on the execution backlog in `Docs/Execution_Backlog_v1.md`.
 
 ## License
 
