@@ -1,4 +1,4 @@
-import type { ProjectStatus, WorkItem, Handoff, Decision, DoneCriterion, DoneResult } from '@endeavor/core';
+import type { ProjectStatus, WorkItem, Handoff, Decision, DoneResult } from '@endeavor/core';
 
 function timeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -111,9 +111,9 @@ export function formatDoneResult(result: DoneResult): string {
   }
 
   const unmetSuffix = result.unmetCount > 0
-    ? ` (${result.unmetCount} criterion unmet)`
+    ? ` (${result.unmetCount} criteria unmet)`
     : '';
-  lines.push(`Completed ${result.item.id}: ${result.item.description}${unmetSuffix}`);
+  lines.push(`Marked done ${result.item.id}: ${result.item.description}${unmetSuffix}`);
 
   if (result.unblocked.length > 0) {
     for (const item of result.unblocked) {

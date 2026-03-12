@@ -11,7 +11,6 @@ import type { LogLevel, Logger } from './logger.js';
 import type {
   Project, WorkItem, Decision, Dependency, Handoff,
   ProjectStatus, DoneResult, AssignOptions, DecideOptions, HandoffOptions,
-  HandoffStatus,
 } from './types.js';
 import { initProject } from './operations/init.js';
 import { getStatus } from './operations/status.js';

@@ -27,8 +27,6 @@ export class EndeavorDaemon {
     this.notifier = new SocketNotifier({ socketPath });
     await this.notifier.start();
 
-    // Get the raw db handle for the watcher
-    const db = (this.endeavor as unknown as { database: { getDb(): unknown } }).database;
     // Access the database through the public repositories' db
     // We need the raw db — use a workaround
     const rawDb = this.endeavor.projects['db'];

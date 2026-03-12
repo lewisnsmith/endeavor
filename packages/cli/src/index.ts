@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execSync } from 'node:child_process';
-import { Endeavor } from '@endeavor/core';
+import { Endeavor, EndeavorError } from '@endeavor/core';
 
 import { registerInit } from './commands/init.js';
 import { registerStatus } from './commands/status.js';
@@ -47,17 +47,37 @@ function findDataDir(): string | null {
 function getOrCreateDataDir(): string {
   const existing = findDataDir();
   if (existing) return existing;
+  // For init, we need to create the dir; for other commands, fail fast
   return join(process.cwd(), '.endeavor');
+}
+
+function requireDataDir(): string {
+  const existing = findDataDir();
+  if (existing) return existing;
+  console.error('No project found. Run "endeavor init" first.');
+  process.exit(1);
 }
 
 let _endeavor: Endeavor | null = null;
 
+function createEndeavorInstance(dataDir: string): Endeavor {
+  const logLevel = (process.env.ENDEAVOR_LOG_LEVEL ?? 'error') as 'debug' | 'info' | 'warn' | 'error';
+  const endeavor = new Endeavor({ dataDir, logLevel });
+  endeavor.initialize();
+  _endeavor = endeavor;
+  return endeavor;
+}
+
+function getEndeavorForInit(): Endeavor {
+  if (!_endeavor) {
+    return createEndeavorInstance(getOrCreateDataDir());
+  }
+  return _endeavor;
+}
+
 function getEndeavor(): Endeavor {
   if (!_endeavor) {
-    const dataDir = getOrCreateDataDir();
-    const logLevel = (process.env.ENDEAVOR_LOG_LEVEL ?? 'error') as 'debug' | 'info' | 'warn' | 'error';
-    _endeavor = new Endeavor({ dataDir, logLevel });
-    _endeavor.initialize();
+    return createEndeavorInstance(requireDataDir());
   }
   return _endeavor;
 }
@@ -93,7 +113,7 @@ program
   .version('0.2.0')
   .description('Terminal-native coordination for parallel Claude Code work');
 
-registerInit(program, getEndeavor);
+registerInit(program, getEndeavorForInit);
 registerStatus(program, getEndeavor, getProjectId);
 registerAssign(program, getEndeavor, getProjectId);
 registerDecide(program, getEndeavor, getProjectId);
@@ -101,6 +121,16 @@ registerDepend(program, getEndeavor);
 registerHandoff(program, getEndeavor, getProjectId);
 registerDone(program, getEndeavor);
 registerNext(program, getEndeavor, getProjectId);
+
+// Global error handler for clean error messages
+process.on('uncaughtException', (err) => {
+  if (err instanceof EndeavorError) {
+    console.error(`error: ${err.message}`);
+    process.exit(1);
+  }
+  console.error(`unexpected error: ${err.message}`);
+  process.exit(1);
+});
 
 program.parse();
 
