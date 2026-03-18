@@ -1,19 +1,19 @@
 {
   "name": "endeavor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Terminal-native coordination for parallel Claude Code work.",
+  "description": "Claude session observatory and multiplexer.",
   "workspaces": [
-    "packages/*"
+    "packages/core",
+    "packages/tui"
   ],
   "scripts": {
-    "build": "npm --workspace @endeavor/core run build && npm --workspace @endeavor/cli --workspace @endeavor/daemon run build",
+    "build": "npm --workspace @endeavor/core run build && npm --workspace @endeavor/tui run build",
     "lint": "npm run -ws --if-present lint",
     "test": "npm run -ws --if-present test",
     "typecheck": "npm run -ws --if-present typecheck",
     "clean": "npm run -ws --if-present clean",
-    "dev:cli": "npm --workspace @endeavor/cli run dev",
-    "dev:daemon": "npm --workspace @endeavor/daemon run dev"
+    "dev": "npm --workspace @endeavor/tui run dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
