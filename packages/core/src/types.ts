@@ -1,103 +1,59 @@
-export interface Project {
-  id: string;
-  name: string;
-  path: string;
-  createdAt: number;
-  updatedAt: number;
-}
+export type SessionSource = 'launched' | 'observed' | 'api' | 'cloud';
 
-export type WorkItemStatus = 'todo' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
+export type SessionStatus =
+  | 'active'
+  | 'waiting_input'
+  | 'waiting_approval'
+  | 'error'
+  | 'completed'
+  | 'dead';
 
-export interface WorkItem {
+export interface SessionSnapshot {
   id: string;
-  projectId: string;
-  description: string;
-  status: WorkItemStatus;
-  assignee: string | null;
+  source: SessionSource;
+  status: SessionStatus;
+  claudeSessionId: string | null;
+  pid: number | null;
+  label: string;
+  cwd: string;
   branch: string | null;
-  worktree: string | null;
-  createdAt: number;
-  updatedAt: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCostUsd: number;
+  model: string | null;
+  lastOutputAt: string | null;
+  startedAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
 }
 
-export interface Decision {
+export interface SpawnOpts {
+  cwd: string;
+  label?: string;
+  initialPrompt?: string;
+  resumeSessionId?: string;
+}
+
+export interface SessionEvent {
   id: string;
-  projectId: string;
-  workItemId: string | null;
-  summary: string;
-  rationale: string | null;
-  decidedBy: string | null;
-  createdAt: number;
+  sessionId: string;
+  type: SessionEventType;
+  payload: Record<string, unknown>;
+  createdAt: string;
 }
 
-export interface Dependency {
-  id: string;
-  blockerId: string;
-  blockedId: string;
-  createdAt: number;
-}
+export type SessionEventType =
+  | 'status_change'
+  | 'prompt'
+  | 'response'
+  | 'error'
+  | 'cost_tick'
+  | 'tool_use';
 
-export type HandoffStatus = 'pending' | 'accepted' | 'completed' | 'expired';
+export type Unsubscribe = () => void;
 
-export interface Handoff {
-  id: string;
-  projectId: string;
-  fromAgent: string | null;
-  toAgent: string | null;
-  summary: string;
-  payload: string | null;
-  status: HandoffStatus;
-  workItemId: string | null;
-  createdAt: number;
-  updatedAt: number;
-}
+/** Idle threshold: session is "idle" if no output for this many ms */
+export const IDLE_THRESHOLD_MS = 2 * 60 * 1000; // 2 minutes
 
-export interface DoneCriterion {
-  id: string;
-  workItemId: string;
-  description: string;
-  met: boolean;
-  metAt: number | null;
-  createdAt: number;
-}
-
-export interface AssignOptions {
-  assignee?: string;
-  branch?: string;
-  worktree?: string;
-  criteria?: string[];
-}
-
-export interface DecideOptions {
-  rationale?: string;
-  decidedBy?: string;
-  workItemId?: string;
-}
-
-export interface HandoffOptions {
-  fromAgent?: string;
-  payload?: string;
-  workItemId?: string;
-}
-
-export interface ProjectStatus {
-  project: Project;
-  items: WorkItem[];
-  handoffs: Handoff[];
-  decisions: Decision[];
-  summary: {
-    total: number;
-    todo: number;
-    inProgress: number;
-    blocked: number;
-    done: number;
-    cancelled: number;
-  };
-}
-
-export interface DoneResult {
-  item: WorkItem;
-  criteria: DoneCriterion[];
-  unmetCount: number;
-  unblocked: WorkItem[];
-}
+/** Color thresholds for tile display */
+export const ACTIVE_OUTPUT_THRESHOLD_MS = 10 * 1000; // 10 seconds

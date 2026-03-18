@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, existsSync, copyFileSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { EndeavorError, ErrorCode } from '../errors.js';
 import type { Logger } from '../logger.js';
@@ -24,6 +24,11 @@ export class EndeavorDatabase {
     try {
       if (this.dbPath !== ':memory:') {
         mkdirSync(dirname(this.dbPath), { recursive: true });
+      }
+
+      // Before opening, backup v0.2 DB if it has old schema
+      if (this.dbPath !== ':memory:') {
+        this.backupV2IfNeeded();
       }
 
       this.db = new Database(this.dbPath);
@@ -108,5 +113,35 @@ export class EndeavorDatabase {
     }
 
     this.logger.info(`Applied ${pending.length} migration(s)`);
+  }
+
+  private backupV2IfNeeded(): void {
+    if (!existsSync(this.dbPath)) return;
+
+    try {
+      const testDb = new Database(this.dbPath, { readonly: true });
+      const tables = testDb
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+        .all()
+        .map((r) => (r as { name: string }).name);
+      testDb.close();
+
+      if (tables.includes('work_items') && !tables.includes('sessions')) {
+        const backupPath = this.dbPath.replace(/\.db$/, '.v2.db');
+        this.logger.info('Backing up v0.2 database', { from: this.dbPath, to: backupPath });
+        copyFileSync(this.dbPath, backupPath);
+        if (existsSync(this.dbPath + '-wal')) {
+          copyFileSync(this.dbPath + '-wal', backupPath + '-wal');
+        }
+        if (existsSync(this.dbPath + '-shm')) {
+          copyFileSync(this.dbPath + '-shm', backupPath + '-shm');
+        }
+        unlinkSync(this.dbPath);
+        if (existsSync(this.dbPath + '-wal')) unlinkSync(this.dbPath + '-wal');
+        if (existsSync(this.dbPath + '-shm')) unlinkSync(this.dbPath + '-shm');
+      }
+    } catch {
+      this.logger.warn('Could not check existing database, will create fresh');
+    }
   }
 }

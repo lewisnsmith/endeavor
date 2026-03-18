@@ -1,12 +1,8 @@
 import { nanoid } from 'nanoid';
 
 const PREFIXES = {
-  project: 'p_',
-  workItem: 'w_',
-  decision: 'd_',
-  dependency: 'dep_',
-  handoff: 'h_',
-  doneCriterion: 'dc_',
+  session: 's_',
+  sessionEvent: 'se_',
 } as const;
 
 type EntityType = keyof typeof PREFIXES;
