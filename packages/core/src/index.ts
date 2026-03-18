@@ -19,3 +19,5 @@ export type { SessionManagerDeps } from './session-manager.js';
 export { StreamJsonParser } from './stream-parser.js';
 export type { StreamParserOptions } from './stream-parser.js';
 export type { SessionAdapter, AdapterCapabilities } from './adapters/index.js';
+export { LauncherAdapter } from './adapters/index.js';
+export type { LauncherDeps } from './adapters/index.js';
