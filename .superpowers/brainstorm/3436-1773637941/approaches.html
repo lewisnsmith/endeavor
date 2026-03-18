@@ -1,0 +1,68 @@
+<h2>Architecture Approaches</h2>
+<p class="subtitle">Three ways to build the Claude session multiplexer + observatory</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>PTY Multiplexer (Recommended)</h3>
+      <p>Endeavor owns the terminal. Uses <code>node-pty</code> to spawn/manage Claude Code processes in pseudo-terminals. TUI renders via <code>Ink</code> (React for terminals). Discovers existing sessions via Claude Code's <code>~/.claude/</code> state files and offers to "adopt" them by reading their output streams.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Full control over I/O — can capture, replay, inject input</li>
+          <li>Real-time token/cost tracking via output parsing</li>
+          <li>Ink gives component model + hot reloading for TUI dev</li>
+          <li>node-pty is battle-tested (powers VS Code terminal)</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Attaching to <em>existing</em> sessions is hard — can only read state, not embed their terminal</li>
+          <li>node-pty is a native module (compilation on install)</li>
+          <li>Must handle SIGWINCH, color codes, cursor positioning</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>tmux Backend</h3>
+      <p>Use tmux as the session multiplexer under the hood. Each Claude session runs in a tmux pane. TUI is a custom tmux interface (or a separate process that reads tmux capture-pane). Existing sessions can be moved into tmux windows.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>tmux handles all the hard PTY problems (attach/detach, resize, persistence)</li>
+          <li>Existing sessions can be genuinely attached via <code>tmux move-pane</code></li>
+          <li>Sessions survive Endeavor crashes</li>
+          <li>Mature, stable foundation</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Hard dependency on tmux being installed</li>
+          <li>TUI is constrained by tmux's own rendering model</li>
+          <li>Custom dashboard UI requires fighting tmux's layout system</li>
+          <li>Parsing tmux capture-pane for status extraction is fragile</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Hybrid: Observer + Launcher</h3>
+      <p>Split the problem. The <strong>observer</strong> reads Claude Code's state files, hooks, and process list to build the dashboard — no PTY needed. The <strong>launcher</strong> uses node-pty only for sessions Endeavor spawns. Existing sessions stay in their original terminals but are observed remotely.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Observer works for ALL session types without PTY complexity</li>
+          <li>Existing sessions don't need to be "adopted" — just watched</li>
+          <li>Clean separation: observe everything, control what you spawn</li>
+          <li>Easiest path to adding API/cloud session adapters later</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Can't type into existing sessions from the TUI — observe only for those</li>
+          <li>Two different UX models (full control vs. read-only) depending on session origin</li>
+          <li>Observer data is only as good as Claude Code's state files expose</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>
