@@ -14,3 +14,8 @@ export type {
   UpdateSessionParams,
   CreateEventParams,
 } from './storage/index.js';
+export { SessionManager } from './session-manager.js';
+export type { SessionManagerDeps } from './session-manager.js';
+export { StreamJsonParser } from './stream-parser.js';
+export type { StreamParserOptions } from './stream-parser.js';
+export type { SessionAdapter, AdapterCapabilities } from './adapters/index.js';
