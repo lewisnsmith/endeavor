@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Endeavor is a terminal-native coordination layer for parallel Claude Code work. It tracks which agent is working on what, what decisions were made, what depends on what, and what handoffs are pending.
+Endeavor is a Claude session observatory and multiplexer — a TUI that shows all Claude Code sessions as color-coded tiles sorted by attention priority.
 
 TypeScript monorepo using npm workspaces.
 
@@ -10,9 +10,8 @@ TypeScript monorepo using npm workspaces.
 
 ```
 packages/
-  core/          Domain logic: types, storage, operations, logger
-  cli/           Commander.js CLI — calls core directly for reads/writes
-  daemon/        Thin background process — watches DB, pushes notifications
+  core/          Domain logic: types, storage, session manager, adapters, stream parser
+  tui/           Ink-based terminal UI: dashboard, session tiles, focus view, observer
 ```
 
 ## Common commands
@@ -24,15 +23,14 @@ npm run typecheck             # type-check without emitting
 npm run lint                  # ESLint across all packages
 npm run test                  # Vitest across all packages
 npm run clean                 # remove all dist/ directories
-npm run dev:cli               # start CLI in dev mode (tsx)
-npm run dev:daemon            # start daemon in dev mode
+npm run dev                   # start the TUI in dev mode (tsx)
 ```
 
 To run a command in a single workspace:
 
 ```bash
 npm --workspace @endeavor/core run test
-npm --workspace @endeavor/cli run dev
+npm --workspace @endeavor/tui run dev
 ```
 
 ## Code conventions
@@ -46,27 +44,24 @@ npm --workspace @endeavor/cli run dev
 - Use the custom logger (`createLogger` / `.child()`), not `console.log`
 - Tests live alongside source as `*.test.ts` files
 - Vitest with `globals: true` — no need to import `describe`/`it`/`expect`
-- IDs use nanoid with entity prefixes: `p_`, `w_`, `d_`, `dep_`, `h_`, `dc_`
+- IDs use nanoid with entity prefixes: `s_`, `se_`
 
 ## Architecture notes
 
-- `Endeavor` class is the central facade — manages DB, repositories, and exposes operations
+- `SessionManager` class is the central facade — manages DB, repositories, adapters, and exposes operations
+- Adapter pattern: `SessionAdapter` interface abstracts session lifecycle (spawn, kill, list, stream)
+- `LauncherAdapter` spawns new Claude sessions via `child_process.spawn`
+- `ObserverAdapter` discovers already-running Claude processes via process scanning
+- `StreamJsonParser` parses Claude's `--output-format stream-json` into typed events
 - SQLite via `better-sqlite3` for all local storage
 - Storage at `.endeavor/endeavor.db` in project root (project-local, not global)
-- Discovery: walks up from cwd looking for `.endeavor/`, like git finds `.git/`
-- Worktrees: detects main repo root via `git rev-parse --git-common-dir`, shares one `.endeavor/`
 - Concurrency: WAL mode + `busy_timeout(5000)` — parallel sessions serialize naturally
-- Operations return typed objects; CLI formats them for terminal display
-- Every CLI command supports `--json` for machine consumption
+- TUI built with Ink (React for the terminal) — renders dashboard of session tiles
 
-## Entity model (6 tables)
+## Entity model (2 tables)
 
-- **projects** — project root paths
-- **work_items** — tasks with status (todo/in_progress/blocked/done/cancelled)
-- **decisions** — recorded decisions with rationale
-- **dependencies** — blocker/blocked relationships between work items
-- **handoffs** — context handoffs between agents/sessions
-- **done_criteria** — completion criteria for work items
+- **sessions** — spawned/observed Claude sessions with status, metrics, cost
+- **session_events** — activity log (status changes, responses, tool use, errors, cost ticks)
 
 ## Environment variables
 
