@@ -16,3 +16,4 @@ coverage/
 
 :memory:
 .worktrees/
+.superpowers/
