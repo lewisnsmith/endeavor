@@ -19,9 +19,10 @@ import { Dashboard, sortByPriority } from './components/dashboard.js';
 import { FocusView } from './components/focus-view.js';
 import { SpawnDialog } from './components/spawn-dialog.js';
 import { ErrorBanner } from './components/error-banner.js';
+import { SplashScreen } from './components/splash-screen.js';
 import { ObserverAdapter } from './observer/observer-adapter.js';
 
-type ViewMode = 'dashboard' | 'focus' | 'spawn';
+type ViewMode = 'splash' | 'dashboard' | 'focus' | 'spawn';
 
 interface AppProps {
   cwd: string;
@@ -31,7 +32,7 @@ interface AppProps {
 export function App({ cwd, attach }: AppProps) {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  const [mode, setMode] = useState<ViewMode>('dashboard');
+  const [mode, setMode] = useState<ViewMode>('splash');
   const [sessions, setSessions] = useState<SessionSnapshot[]>([]);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [events, setEvents] = useState<SessionEvent[]>([]);
@@ -235,6 +236,10 @@ export function App({ cwd, attach }: AppProps) {
       setFocusedIndex(sessions.length - 1);
     }
   }, [sessions.length, focusedIndex]);
+
+  if (mode === 'splash') {
+    return <SplashScreen onDone={() => setMode('dashboard')} />;
+  }
 
   return (
     <Box flexDirection="column" width="100%">
