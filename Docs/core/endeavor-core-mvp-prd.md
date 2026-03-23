@@ -1,480 +1,498 @@
-# Endeavor Core: AI Tool Bus (MVP PRD)
+# Endeavor: The Claude Code Operating System (MVP PRD)
 
-**Name**: Endeavor Core — AI Tool Bus (MVP)
-**Date**: Feb 20, 2026
-**Scope**: First component only — custom MCP/API server you can use on real projects
+**Name**: Endeavor — TUI Workflow Dashboard for Claude Code
+**Date**: March 18, 2026
+**Scope**: MVP — terminal-native coordination layer for parallel Claude Code sessions
 **Status**: Draft
 
 ---
 
-## 1. Problem
+## 1. Product Vision
 
-You use multiple AI tools (Claude Desktop, Cursor, GPT API, etc.) in the same project.
-Today, each tool:
-- Knows nothing about what the others did.
-- Requires you to re-explain the project context.
-- Re-ingests the same files and notes repeatedly, wasting tokens.
+Endeavor is the **Claude Code operating system**: a single-terminal flywheel that turns parallel agent chaos into coordinated, human-directed work.
 
-Naive MCP setups make this worse:
-- Exposing many tools at once can "burn" tens of thousands of tokens just on tool definitions.
-- Context and history are fragmented across tools and logs.
+Where generic multiplexers (tmux, Zellij) give you panes and where broad multi-AI orchestrators (CodeAgentSwarm, aider) give you automation, Endeavor gives you **control**. It owns the graph of what each session is doing, what decisions were made, what depends on what, and when a human needs to step in — information that no pane layout or code agent tracks.
 
-You want a **single local component** that:
-- Connects your tools to your projects.
-- Manages context once.
-- Routes requests efficiently.
-- Records a unified timeline of AI interactions per project.
+### The Core Insight
 
-This is the **spine** everything else will build on.
+Multi-session Claude Code work has a structural problem that panes can't solve: the dependency graph. When Session 2 is blocked by Session 5's interface contract, and Session 7 is waiting for Session 2's output, you need topological awareness, not more terminal windows. Endeavor models this as a DAG, surfaces the critical path, and routes human attention exactly where it matters.
 
----
+### Competitive Differentiation
 
-## 2. Solution Overview
+| Dimension | tmux / Zellij | CodeAgentSwarm | **Endeavor** |
+|---|---|---|---|
+| Session visibility | Pane grid (dumb) | Agent list | Live status grid with color-coded state |
+| Dependencies | None | None | **First-class DAG — blocks/is-blocked-by** |
+| Decision history | None | None | **Queryable per-session handoff log** |
+| Human routing | None | Notifications | **Attention queue with keystroke triage** |
+| Spawn model | Manual tmux splits | Automated | **One-keystroke spawn with context seeding** |
+| Scope | Any terminal app | Any AI agent | **Claude Code session model — native fit** |
 
-**Endeavor Core** is the **standard context layer and event bus** for every AI tool or agent that integrates with your projects. Any tool—MCP client, custom agent, CLI script, or future UI—connects through Core to read shared context and publish events to a single, unified timeline. Rather than each tool maintaining its own siloed memory, Core acts as the canonical source of project state that all participants share.
-
-Core is designed following **modern MCP meta-tool best practices for token efficiency**: it exposes a single, internally-routed tool instead of a large tool catalog, keeping per-request token overhead minimal (see *Anthropic, "Building Effective Agents,"* 2025 — meta-tool / bounded-context pattern).
-
-It presents two integration surfaces:
-
-1. **MCP meta-tool (stdio)**
-   - Exposed as a single tool (e.g., `endeavor`) to MCP-capable clients (Claude Desktop, Cursor, Windsurf).
-   - Internally routes `action`s like `context`, `search`, `log`, `status`.
-
-2. **REST API**
-   - Local HTTP API other clients can call (custom agents, scripts, future cockpit UI).
-   - Provides context blocks, logging, and project timelines.
-
-Everything runs on your machine, backed by a local SQLite + vector index. No cloud dependencies except the embedding/model APIs you choose.
+The math/research edge: dependency graphs with topological sort for ready queues, critical-path detection for blocking chains, and priority scoring that mixes session urgency with human attention cost.
 
 ---
 
-## 3. Objectives
+## 2. Problem
 
-**Primary:**
-- Make it easy for you to plug your own AI tools into a shared, efficient context layer.
-- Avoid MCP token overhead by using a single meta-tool.
-- Provide a clean, understandable codebase.
-- Provide a tiny integration surface (REST+MCP) that other tools/agents can implement to integrate with Endeavor as their context/logging layer.
+You're running 4–8 parallel Claude Code sessions on a project. Right now:
 
-**Secondary:**
-- Be useful as a standalone open-source component.
-- Provide solid benchmarks and diagrams.
+- **No session has awareness of others.** Session 3 duplicates work Session 1 already finished. Session 6 waits on an interface that Session 2 changed an hour ago but never announced.
+- **You have no single view.** You switch between tmux panes, mentally tracking state that should be tracked by a tool.
+- **Handoffs are lossy.** When you stop a session and hand off to a new one, the decision context ("why we rejected approach B") lives in your head or in a chat scroll nobody re-reads.
+- **Attention is unrouted.** Sessions that need human input (unblock decisions, conflicting proposals, test failures requiring judgment) have no way to escalate. They either stall or proceed with wrong assumptions.
+- **Dependencies are invisible.** You don't know that 3 sessions are blocked on one upstream decision until you've wasted cycles.
+
+---
+
+## 3. Solution Overview
+
+Endeavor is a **terminal-native TUI dashboard** that runs alongside your Claude Code sessions. It does four things:
+
+1. **Observes** — reads the Endeavor DB to display a live grid of all sessions and their current status.
+2. **Routes** — surfaces sessions that need human attention to an attention queue you triage with single keystrokes.
+3. **Connects** — models the dependency graph between sessions, highlighting blocked chains and surfacing the critical path.
+4. **Records** — keeps a queryable log of decisions, handoffs, and cross-session context so nothing is lost between sessions.
+
+This is **not** a coding agent. Endeavor does not write code. It coordinates the agents that do.
 
 ---
 
 ## 4. Core Concepts
 
-### 4.1 Project
+### 4.1 Sessions
 
-A project is a folder on disk (e.g. a repo, research notebook, or app). Endeavor Core tracks:
-- Path
-- Created/updated timestamps
-- Type — **optional metadata only** (`software`, `research`, `other`). Does not change core behavior; every project gets the same indexing, context, and event pipeline.
+A session is one running `claude` process in a worktree. Endeavor tracks:
 
-**Supported file types (any project):** `.ts`, `.py`, `.md`, `.json`, `.yaml`, `.csv`, `.tex`, `.ipynb`
+- Session ID and human label (e.g., "auth-refactor", "database-migration")
+- Current status: `idle` | `working` | `waiting` | `error` | `attention-needed`
+- Work item(s) assigned
+- Worktree path and git branch
+- Last activity timestamp
 
-### 4.2 Tools
+Status is color-coded in the dashboard:
 
-Logical names and configs for AI tools you use, e.g.:
-- `claude_desktop`
-- `cursor`
-- `gpt_api`
+| Status | Color | Meaning |
+|---|---|---|
+| `idle` | Gray | Session paused or finished its current task |
+| `working` | Green | Active, making progress |
+| `waiting` | Yellow | Blocked on a dependency or external signal |
+| `error` | Red | Encountered an unrecoverable error state |
+| `attention-needed` | Magenta (blinking) | Requires human judgment to proceed |
 
-They are **callers** of Endeavor Core, not something Core calls out to.
+### 4.2 Work Items
 
-### 4.3 Events
+A unit of work assigned to a session. Statuses: `todo` → `in_progress` → `blocked` → `done` / `cancelled`. Each work item has done criteria, an optional assignee session, and can carry dependencies on other items.
 
-Atomic units in a project timeline, e.g.:
-- "Claude answered a question about auth at 14:32"
-- "You accepted a refactor suggestion and committed it"
+### 4.3 Dependency Graph
 
-Stored with:
-- project_id
-- tool
-- kind (`prompt`, `response`, `decision`, `note`, etc.)
-- summary text
-- timestamp
-- optional metadata (e.g. link to full convo)
+The central data structure. Directed edges between work items encode blocking relationships:
 
-### 4.4 Context
+- `A blocks B`: B cannot start or complete until A is done.
+- Displayed in the dashboard as a DAG view and surfaced in session detail.
+- Topological sort of the DAG produces the **ready queue**: work items with no unsatisfied blockers.
+- Critical path (longest chain from source to sink) is highlighted to show where schedule risk lives.
 
-A formatted text block Endeavor Core builds per-request, including:
-- Short project summary
-- Recent relevant events
-- Most relevant file snippets
-- Key decisions
+### 4.4 Decisions
 
-Returned as plaintext; callers can prepend it to prompts.
+A timestamped, searchable log of choices made during the session, with rationale. Format:
+
+```
+[session-id] [timestamp] DECISION: <what was decided>
+RATIONALE: <why>
+ALTERNATIVES_CONSIDERED: <what was rejected and why>
+```
+
+Queryable with `?` in the dashboard. "What did Session 3 decide about the auth approach?" returns the relevant decision log.
+
+### 4.5 Handoffs
+
+A structured context transfer between sessions (or between a session and a future session). Includes:
+
+- Work completed
+- Decisions made
+- Open questions
+- Next suggested actions
+
+Handoffs are stored in the DB and surfaced when spawning a new session, so the incoming session starts with full context.
+
+### 4.6 Attention Queue
+
+Sessions in `attention-needed` state push a message to the attention queue. The queue is the canonical list of things that require human judgment, ordered by urgency. You triage it from the dashboard without switching terminal panes.
 
 ---
 
-## 5. Architecture
+## 5. TUI Dashboard — UX Design
 
-### 5.1 High-Level Diagram
+### 5.1 Main Grid View
+
+The default view. A table of all active and recent sessions:
 
 ```
-                ┌─────────────────────────────┐
-                │   Claude Desktop / Cursor  │
-                │   (MCP clients)            │
-                └────────────┬───────────────┘
-                             │ MCP (stdio)
-                             ▼
-                   ┌───────────────────┐
-                   │  Endeavor Core   │
-                   │   (Node server)  │
-                   └───────────────────┘
-                             ▲
-       REST (localhost)      │
-┌──────────────────────┐     │   ┌──────────────────────┐
-│  Custom agents/CLIs  │─────┘   │  Future cockpit UI   │
-└──────────────────────┘         └──────────────────────┘
-
-Internals of Endeavor Core:
-
-┌───────────────────────────────────────────────────────────┐
-│ Endeavor Core                                             │
-│                                                           │
-│  ┌───────────────┐   ┌────────────────┐   ┌────────────┐ │
-│  │ MCP Server    │   │ REST API       │   │ Event Bus  │ │
-│  └──────┬────────┘   └──────┬─────────┘   └────┬───────┘ │
-│         │                   │                  │         │
-│         ▼                   ▼                  ▼         │
-│  ┌─────────────────────────────────────────────────────┐ │
-│  │          Context & Timeline Engine                  │ │
-│  │  - project registry                                 │ │
-│  │  - file index + embeddings                          │ │
-│  │  - event log                                        │ │
-│  │  - context builder (token limits aware)             │ │
-│  └─────────────────────┬───────────────────────────────┘ │
-│                        │                                 │
-│      ┌─────────────────▼────────────────────┐            │
-│      │        SQLite + Vector Index        │            │
-│      └──────────────────────────────────────┘            │
-└───────────────────────────────────────────────────────────┘
+┌─ ENDEAVOR ──────────────────────────────── project: my-app ──── 08:42:31 ─┐
+│                                                                             │
+│  #   SESSION           STATUS           WORK ITEM              UPDATED      │
+│  ─── ──────────────── ──────────────── ────────────────────── ──────────── │
+│  1   auth-refactor    ● WORKING        Implement JWT refresh  2m ago       │
+│  2   db-migration     ◐ WAITING        Schema v3 migration    8m ago       │
+│  3   api-gateway      ✓ IDLE           Gateway routing done   14m ago      │
+│  4   frontend-auth    ✗ ERROR          Build failed           1m ago       │
+│  5   test-suite       ▲ ATTENTION      Needs test strategy    just now     │
+│  6   docs             ● WORKING        API reference          5m ago       │
+│                                                                             │
+│  ATTENTION QUEUE  [1 item]                                                  │
+│  ▲ Session 5: Conflicting test frameworks — choose Jest or Vitest? [Enter] │
+│                                                                             │
+│  BLOCKED CHAIN: Session 2 → Session 1 → Session 5 (critical path)          │
+│                                                                             │
+│  [↑↓] navigate  [Enter] dive in  [n] new session  [d] decisions            │
+│  [h] handoff    [q] quit         [?] search        [g] dep graph           │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 Tech Stack
+### 5.2 Session Detail View
 
-- Language: TypeScript (Node.js)
-- DB: SQLite via `better-sqlite3`
-- Vector index: local (e.g. Vectra) with optional OpenAI embeddings
-- HTTP: Fastify or Express
-- MCP: stdio server following MCP best practices
+One-keystroke drill-down (`Enter` on a session row) opens the session detail:
+
+```
+┌─ SESSION 5: test-suite ─────────────────────────────── [Esc] back ─────────┐
+│                                                                             │
+│  STATUS:  ▲ ATTENTION NEEDED                                                │
+│  BRANCH:  feat/test-suite                                                   │
+│  ITEM:    Set up integration test framework                                 │
+│                                                                             │
+│  ATTENTION REQUEST:                                                         │
+│  "Two testing frameworks are viable: Jest (familiar, heavier) vs Vitest    │
+│   (faster, native ESM). Architecture decision affects Sessions 1, 2, 4.    │
+│   Please choose."                                                           │
+│                                                                             │
+│  DECISIONS:                                                                 │
+│  [1] 09:12 — Used Zod for validation over Joi (simpler types)              │
+│  [2] 08:45 — Chose REST over GraphQL for external API surface              │
+│                                                                             │
+│  DEPENDENCIES:                                                              │
+│  Blocks: Session 1 (auth), Session 2 (db), Session 4 (frontend)            │
+│  Blocked by: none                                                           │
+│                                                                             │
+│  [r] respond/unblock  [d] log decision  [h] create handoff  [↑↓] scroll   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.3 Dependency Graph View (`g`)
+
+```
+┌─ DEPENDENCY GRAPH ──────────────────────────────────────────────────────────┐
+│                                                                             │
+│  READY (no blockers):                                                       │
+│    Session 3 — api-gateway (IDLE)                                          │
+│    Session 6 — docs (WORKING)                                              │
+│                                                                             │
+│  BLOCKED CHAIN [CRITICAL PATH]:                                             │
+│    Session 5 (test-suite) ──blocks──► Session 1 (auth-refactor)            │
+│                            ──blocks──► Session 2 (db-migration)            │
+│                            ──blocks──► Session 4 (frontend-auth)           │
+│                                                                             │
+│  TOPOLOGICAL ORDER (ready queue):                                           │
+│    [1] Session 5  [2] Sessions 1,2,4  [3] Session 3,6                     │
+│                                                                             │
+│  Longest blocking chain: 3 sessions deep. Resolving Session 5 unblocks 3. │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 5.4 Decision Search (`?`)
+
+Fuzzy-search across all session decision logs:
+
+```
+Search decisions > auth
+
+  [Session 1 · 09:41] JWT refresh token strategy — used httpOnly cookies
+  [Session 2 · 08:45] PostgreSQL over MongoDB — schema migrations cleaner
+  [Session 5 · 08:12] Rejected session-based auth — stateless API requirement
+```
+
+### 5.5 Spawn Session (`n`)
+
+One-keystroke session spawning with context seeding from the DB:
+
+```
+┌─ NEW SESSION ────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│  Label:      [payment-integration            ]                               │
+│  Work item:  [Integrate Stripe webhook handling]                             │
+│  Branch:     [feat/payment-integration       ]  (auto from label)            │
+│  Seed from:  [Session 3 (api-gateway) handoff] ↓                            │
+│                                                                              │
+│  Context preview (will be injected into new session):                        │
+│  • API uses REST with Zod validation                                         │
+│  • Auth uses JWT with httpOnly refresh cookies                               │
+│  • Session 3 handoff: routing layer complete, webhook endpoint stubbed       │
+│                                                                              │
+│  [Enter] spawn  [Esc] cancel                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 6. MCP Meta-tool Design
+## 6. Architecture
 
-### 6.1 Single Tool Schema
+### 6.1 Components
 
-Expose exactly one tool over MCP:
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Endeavor TUI (packages/tui/)                                               │
+│  ─ blessed / ink terminal rendering                                         │
+│  ─ Key bindings and view state machine                                      │
+│  ─ Real-time DB polling (100ms) for session status updates                  │
+└─────────────────────┬───────────────────────────────────────────────────────┘
+                      │ reads/writes
+                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Endeavor Core (packages/core/)                                             │
+│  ─ Endeavor facade: central API surface                                     │
+│  ─ Repositories: sessions, work_items, decisions, handoffs, dependencies    │
+│  ─ DAG engine: topological sort, critical path, ready queue                 │
+│  ─ SQLite via better-sqlite3, WAL mode                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+                      │
+┌─────────────────────┴───────────────────────────────────────────────────────┐
+│  Endeavor CLI (packages/cli/)                                               │
+│  ─ Commander.js CLI for scripted access                                     │
+│  ─ All commands available as --json for machine consumption                  │
+│  ─ Session agents call CLI to log decisions, request handoffs, flag attention│
+└─────────────────────────────────────────────────────────────────────────────┘
+                      │
+┌─────────────────────┴───────────────────────────────────────────────────────┐
+│  Endeavor Daemon (packages/daemon/)                                         │
+│  ─ Watches DB for session status changes                                    │
+│  ─ Pushes attention-needed alerts to TUI event stream                       │
+│  ─ Detects stale sessions (no activity > threshold)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-```jsonc
-{
-  "name": "endeavor",
-  "description": "Access project-aware context and log events for this workspace.",
-  "input_schema": {
-    "type": "object",
-    "properties": {
-      "action": {
-        "type": "string",
-        "enum": ["context", "search", "log", "status"]
-      },
-      "query": { "type": "string" },
-      "summary": { "type": "string" },
-      "kind": { "type": "string" },
-      "metadata": { "type": "object" }
-    },
-    "required": ["action"],
-    "additionalProperties": false
-  }
+### 6.2 How Sessions Report State
+
+Sessions are Claude Code agents running in worktrees. They communicate with Endeavor through the CLI:
+
+```bash
+# A session reports it's working
+endeavor work update w_abc123 --status in_progress
+
+# A session logs a decision
+endeavor decision add "Chose Vitest over Jest — faster, native ESM" \
+  --work-item w_abc123 --rationale "Build times 40% faster in benchmark"
+
+# A session flags it needs human input
+endeavor work update w_abc123 --status blocked \
+  --attention "Conflicting test frameworks detected, need human choice"
+
+# A session creates a handoff before terminating
+endeavor handoff create \
+  --from-session s_abc123 \
+  --summary "Auth layer complete. JWT refresh implemented via httpOnly cookies." \
+  --next-actions "Wire auth middleware into API gateway routes"
+```
+
+### 6.3 DAG Engine
+
+Core logic for dependency graph traversal:
+
+```typescript
+// Topological sort → ready queue
+function readyQueue(items: WorkItem[], edges: Dependency[]): WorkItem[] {
+  // Kahn's algorithm on the dependency DAG
+  // Returns items with in-degree 0 (no unsatisfied blockers)
+}
+
+// Critical path (longest chain)
+function criticalPath(items: WorkItem[], edges: Dependency[]): WorkItem[] {
+  // Longest path in DAG via dynamic programming
+  // Highlights the chain where resolving the head unblocks the most work
+}
+
+// Cycle detection (prevent circular dependencies)
+function detectCycles(edges: Dependency[]): Dependency[] | null {
+  // DFS-based cycle detection
 }
 ```
 
-This follows the "meta-tool" / "bounded context" pattern recommended for token-efficient MCP: one tool, internal routing (*Anthropic, "Building Effective Agents,"* 2025; see also MCP specification guidance on minimizing tool-definition token cost).
+### 6.4 Monorepo Structure
 
-### 6.2 Actions
+```
+packages/
+  core/      Domain logic: sessions, work items, decisions, handoffs,
+             dependencies, DAG engine, logger, SQLite storage
+  cli/       Commander.js CLI — reads/writes core for session agent use
+  daemon/    Background process — watches DB, pushes status change events
+  tui/       Terminal UI — blessed/ink rendering, key bindings, view state
+```
 
-- `action: "context"`
-  - Input: `{ query?: string }`
-  - Behavior: build context block for current project and query
-  - Output: `{ context: string, tokens: number, sources: { files: string[], events: number[] } }`
+### 6.5 Tech Stack
 
-- `action: "search"`
-  - Input: `{ query: string }`
-  - Behavior: semantic search over indexed files + events
-  - Output: `{ results: Array<{ type: "file"|"event", score: number, snippet: string }> }`
-
-- `action: "log"`
-  - Input: `{ summary: string, kind?: string, metadata?: object }`
-  - Behavior: append an event to project timeline
-  - Output: `{ ok: true, eventId: number }`
-
-- `action: "status"`
-  - Input: none
-  - Output: basic project stats (num events, tracked files, last updated)
-
-### 6.3 Project Detection
-
-For MCP clients, project identity is inferred from:
-- The working directory path provided by the client (if available), or
-- A configured root path per client session.
-
-Endeavor Core normalizes this to its internal `project_id`.
+| Layer | Choice | Rationale |
+|---|---|---|
+| Language | TypeScript strict | Type-safe graph operations, NodeNext modules |
+| Storage | SQLite via better-sqlite3 | Zero-config, WAL mode for parallel session writes |
+| TUI | Blessed or Ink | Full terminal control, box-drawing chars, color |
+| IDs | nanoid with prefixes | `s_`, `w_`, `d_`, `dep_`, `h_`, `dc_` |
+| Tests | Vitest | Co-located `*.test.ts`, globals: true |
 
 ---
 
-## 7. REST API Design
+## 7. Data Model
 
-Base URL: `http://127.0.0.1:31415` (for example)
-
-### 7.1 `POST /projects`
-
-Create or register a project.
-
-Request:
-```json
-{ "path": "/absolute/path", "type": "software" }
-```
-
-Response:
-```json
-{ "id": "proj_123", "path": "/absolute/path", "type": "software" }
-```
-
-### 7.2 `GET /projects`
-
-List known projects.
-
-Response:
-```json
-[{ "id": "proj_123", "path": "...", "type": "software" }]
-```
-
-### 7.3 `POST /context`
-
-Get a context block for a project.
-
-Request:
-```json
-{ "projectId": "proj_123", "query": "auth middleware" }
-```
-
-Response:
-```json
-{
-  "context": "# Project: ...
-...",
-  "tokens": 1875,
-  "sources": {
-    "files": ["src/auth.ts", "src/middleware/auth.ts"],
-    "events": [12, 19]
-  }
-}
-```
-
-### 7.4 `POST /log`
-
-Append an event to the timeline.
-
-Request:
-```json
-{
-  "projectId": "proj_123",
-  "tool": "claude_desktop",
-  "kind": "decision",
-  "summary": "Chose JWT auth over sessions for API clients.",
-  "metadata": { "why": "stateless, easier scaling" }
-}
-```
-
-Response:
-```json
-{ "ok": true, "eventId": 42 }
-```
-
-### 7.5 `GET /timeline`
-
-Get recent events for a project.
-
-Query params: `?projectId=proj_123&limit=50`
-
-Response:
-```json
-{
-  "events": [
-    {
-      "id": 42,
-      "tool": "claude_desktop",
-      "kind": "decision",
-      "summary": "Chose JWT auth over sessions for API clients.",
-      "timestamp": 1740000000
-    }
-  ]
-}
-```
-
----
-
-## 7.6 Auto-Capture Pipeline
-
-Endeavor Core captures project activity automatically — no manual `log` calls required for routine work.
-
-### 7.6.1 MCP Interceptor
-
-Every `tools/call` request that passes through the MCP server is logged automatically. The interceptor records:
-- Tool name, arguments, and timestamp
-- Response summary (truncated to stay within storage limits)
-- Originating client / session ID
-
-### 7.6.2 Rule-Based Classifier
-
-Each captured event is tagged by a lightweight rule engine:
-
-| Pattern | Tag |
-|---|---|
-| Tool call that changes project config or accepts/rejects a suggestion | `decision` |
-| Tool call followed by another call to the same tool within the session | `iteration` |
-| Tool call that produces new data, references, or search results | `finding` |
-| Everything else | `note` |
-
-Tags are stored in the `kind` column of the `events` table and are used by the context engine when ranking relevance.
-
-### 7.6.3 File-Change Correlation
-
-File changes detected within **60 seconds** of a tool call are automatically associated with that call and recorded as `iteration` events. This links code edits, document saves, and config changes back to the AI interaction that triggered them — without requiring explicit user annotation.
-
----
-
-## 8. Data Model
-
-SQLite tables (simplified):
+### 7.1 Schema
 
 ```sql
-CREATE TABLE projects (
-  id         TEXT PRIMARY KEY,
-  path       TEXT NOT NULL,
-  type       TEXT,
-  created_at INTEGER,
-  updated_at INTEGER
-);
-
-CREATE TABLE files (
-  id         TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  path       TEXT NOT NULL,
-  mtime      INTEGER,
-  size       INTEGER,
+-- Active and historical sessions
+CREATE TABLE sessions (
+  id          TEXT PRIMARY KEY,         -- s_nanoid
+  label       TEXT NOT NULL,            -- human name e.g. "auth-refactor"
+  status      TEXT NOT NULL DEFAULT 'idle',  -- idle|working|waiting|error|attention-needed
+  branch      TEXT,
+  worktree    TEXT,
+  project_id  TEXT NOT NULL,
+  attention_msg TEXT,                   -- set when status = attention-needed
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id)
 );
 
-CREATE TABLE file_chunks (
-  id         TEXT PRIMARY KEY,
-  project_id TEXT NOT NULL,
-  file_id    TEXT NOT NULL,
-  content    TEXT NOT NULL,
-  embedding  BLOB,
-  tokens     INTEGER,
+-- Units of work
+CREATE TABLE work_items (
+  id          TEXT PRIMARY KEY,         -- w_nanoid
+  project_id  TEXT NOT NULL,
+  session_id  TEXT,
+  title       TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'todo',  -- todo|in_progress|blocked|done|cancelled
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
   FOREIGN KEY (project_id) REFERENCES projects(id),
-  FOREIGN KEY (file_id) REFERENCES files(id)
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
 );
 
-CREATE TABLE events (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  project_id TEXT NOT NULL,
-  tool       TEXT,
-  kind       TEXT,
-  summary    TEXT NOT NULL,
-  metadata   TEXT,
-  timestamp  INTEGER,
-  FOREIGN KEY (project_id) REFERENCES projects(id)
+-- Decisions made by sessions
+CREATE TABLE decisions (
+  id          TEXT PRIMARY KEY,         -- d_nanoid
+  project_id  TEXT NOT NULL,
+  session_id  TEXT,
+  work_item_id TEXT,
+  summary     TEXT NOT NULL,
+  rationale   TEXT,
+  alternatives_considered TEXT,
+  created_at  INTEGER NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES projects(id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
 );
 
-CREATE TABLE usage_logs (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  project_id TEXT,
-  tool       TEXT,
-  model      TEXT,
-  tokens_in  INTEGER,
-  tokens_out INTEGER,
-  cost_usd   REAL,
-  timestamp  INTEGER
+-- Blocking relationships between work items (the DAG edges)
+CREATE TABLE dependencies (
+  id          TEXT PRIMARY KEY,         -- dep_nanoid
+  blocker_id  TEXT NOT NULL,            -- work item that blocks
+  blocked_id  TEXT NOT NULL,            -- work item that is blocked
+  created_at  INTEGER NOT NULL,
+  FOREIGN KEY (blocker_id) REFERENCES work_items(id),
+  FOREIGN KEY (blocked_id) REFERENCES work_items(id)
+);
+
+-- Context handoffs between sessions
+CREATE TABLE handoffs (
+  id              TEXT PRIMARY KEY,     -- h_nanoid
+  project_id      TEXT NOT NULL,
+  from_session_id TEXT NOT NULL,
+  to_session_id   TEXT,                 -- null until a new session claims it
+  summary         TEXT NOT NULL,
+  decisions_made  TEXT,                 -- JSON array of decision IDs
+  open_questions  TEXT,
+  next_actions    TEXT,
+  created_at      INTEGER NOT NULL,
+  FOREIGN KEY (project_id) REFERENCES projects(id),
+  FOREIGN KEY (from_session_id) REFERENCES sessions(id)
+);
+
+-- Completion criteria for work items
+CREATE TABLE done_criteria (
+  id          TEXT PRIMARY KEY,         -- dc_nanoid
+  work_item_id TEXT NOT NULL,
+  criterion   TEXT NOT NULL,
+  met         INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (work_item_id) REFERENCES work_items(id)
+);
+
+-- Projects (repo roots)
+CREATE TABLE projects (
+  id          TEXT PRIMARY KEY,         -- p_nanoid
+  path        TEXT NOT NULL UNIQUE,
+  name        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
 );
 ```
 
----
+### 7.2 Key Invariants
 
-## 9. Context Engine Behavior
-
-### 9.1 Inputs
-
-- `projectId`
-- Optional `query`
-- Model info (to set token budgets)
-
-### 9.2 Token Budget
-
-The context block is assembled to fit within a **~2,000-token default budget**, allocated as follows:
-
-| Section | ~Tokens | Contents |
-|---|---|---|
-| Header | 150 | Project name, path, type, created/updated |
-| Key decisions | 400 | Most recent and highest-relevance `decision` events |
-| File chunks | 900 | Semantically relevant code/doc snippets |
-| Active tasks | 300 | Open tasks and recent status changes |
-| Recent events | 250 | Last N events by timestamp |
-| **Total** | **~2,000** | |
-
-The budget is configurable per-client and can scale up for models with larger context windows.
-
-### 9.3 Session-Level Auto-Injection
-
-A **thin 150-token header block** is injected **once per MCP session**, not per tool call. This block contains:
-- Project identity (name, path)
-- Session start time
-- Number of events since last session
-
-Subsequent `endeavor` calls within the same session omit the header, reducing per-call overhead to near zero.
-
-### 9.4 Context Assembly Steps
-
-1. Identify relevant file chunks via semantic search.
-2. Identify recent relevant events (decisions, notes) using embeddings.
-3. Build a context skeleton:
-   - 1–3 lines: project summary
-   - Short section: recent relevant events
-   - Short section: file snippets
-4. Pack into token budget using greedy strategy:
-   - include most relevant chunks fully until ~60–70% of budget
-   - include summarized versions next
-   - include references (paths only) for the rest
-5. Return formatted markdown/plaintext.
+- A session may only be in `attention-needed` if `attention_msg` is set.
+- A work item in `blocked` must have at least one unsatisfied dependency row.
+- Dependency edges must form a DAG — the DAG engine validates on every edge insertion.
+- Handoffs are immutable once created; new context goes in a new handoff.
 
 ---
 
-## 10. Non-goals for MVP
+## 8. MVP Feature Set
 
-- **No IDE** — Endeavor Core is a headless server; IDE integrations are post-core.
-- **No GitHub-like version control** — Core tracks events and context, not git history or diffs.
-- **No coding agent** — Core provides context to agents; it does not write or refactor code itself.
-- **No full cockpit UI** — A visual dashboard/cockpit is a separate, post-core component.
-- **No project management agent** — Automated planning, scheduling, or task assignment is out of scope.
-- No automatic modification of project files.
-- No complex scheduling.
+### Must-have for MVP
 
-Just: **a clean MCP + REST core you can plug your existing tools into.**
+| Feature | Description |
+|---|---|
+| Live session grid | Color-coded status table, auto-refreshing every 100ms |
+| Session drill-down | Single-keystroke detail view with decisions and deps |
+| Attention queue | Surfaced in main view, triage with Enter |
+| Dependency graph view | DAG rendered as text, topological sort, critical path |
+| Decision log | Per-session, searchable with `?` |
+| Session spawning | `n` to spawn with handoff context seeding |
+| Handoff creation | `h` from session detail to record context transfer |
+| CLI reporting | Sessions call CLI to update status, log decisions, flag attention |
+| SQLite storage | WAL mode for concurrent session writes |
+| Worktree detection | Shares one `.endeavor/` DB across all worktrees of a repo |
+
+### Out of scope for MVP
+
+- Web UI or Electron app (TUI is the product)
+- AI-driven orchestration or autonomous session management
+- Cloud sync or multi-machine support
+- Integration with non-Claude-Code AI tools (that's a post-MVP expansion)
+- GitHub/Linear/Jira integration
+- Cost/token tracking (post-MVP)
 
 ---
 
-## 11. Definition of Done
+## 9. Definition of Done
 
-- MCP server runnable locally, exposes `endeavor` tool.
-- REST API with `/projects`, `/context`, `/log`, `/timeline` working.
-- File indexing and embedding working for at least one project folder.
-- Context builder respects token budgets.
-- You can point Claude Desktop and/or Cursor to this server and:
-  - get context via `endeavor` without manual copy-paste
-  - log decisions with `endeavor`.
-- Minimal tests for core pieces (DB init, embeddings, context building).
-- Clear README with setup instructions.
+MVP is complete when:
+
+- [ ] TUI launches with `endeavor tui` and shows the session grid
+- [ ] Sessions can report status via `endeavor work update` CLI
+- [ ] Sessions can log decisions via `endeavor decision add` CLI
+- [ ] Sessions can flag attention with a message
+- [ ] Main grid color-codes all 5 status states correctly
+- [ ] `Enter` opens session detail with decisions and dependency info
+- [ ] `g` opens the DAG view with topological order and critical path highlighted
+- [ ] `?` searches across all decisions
+- [ ] `n` spawns a session prompt pre-seeded with latest relevant handoff context
+- [ ] `h` creates a handoff from the current session
+- [ ] Dependencies can be added between work items and cycle detection runs
+- [ ] All data persists in `.endeavor/endeavor.db` (project-local)
+- [ ] Concurrent session writes don't corrupt the DB (WAL mode tested)
+- [ ] Core, CLI, daemon, and TUI packages all build and pass CI
+- [ ] README explains the model and has a 5-minute setup guide
+
+---
+
+## 10. Why This Wins: The Portfolio Angle
+
+The pitch is crisp: **no one else ships a Claude Code operating system**.
+
+tmux solves pane layout. CodeAgentSwarm solves automation. Nothing models the *graph of decisions that makes multi-session work scale* — the DAGs, the queryable handoffs, the attention routing. That's the math/research edge that makes this a standout portfolio piece (Stanford/MIT apps): you're not just building a dashboard, you're building a coordination layer with computer-science-grounded primitives (DAGs, topological sort, critical path) applied to a new domain (human-in-the-loop AI workflow management).
+
+The moat is the session model, not the UI. Once sessions are logging decisions and handoffs into a structured DB, you can answer questions no other tool can answer: "What did the auth session decide last Tuesday?", "Which sessions are blocked on the database session?", "What's the fastest path to unblocking the frontend?"
+
+That's the flywheel: the more sessions log, the more valuable the graph becomes.
