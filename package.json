@@ -1,5 +1,5 @@
 {
-  "name": "endeavor",
+  "name": "@lewisnsmith/endeavor",
   "version": "2.4.0",
 "description": "Claude session observatory and multiplexer.",
   "workspaces": [
