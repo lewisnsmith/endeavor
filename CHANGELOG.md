@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.3.0] - 2026-03-23
+## [2.4.0] - 2026-03-23
 
 ### Changed
 - Complete rewrite as a TUI session observatory
