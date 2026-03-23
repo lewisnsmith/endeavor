@@ -6,9 +6,10 @@ import type { SessionSnapshot, SessionStatus } from '@endeavor/core';
 interface DashboardProps {
   sessions: SessionSnapshot[];
   focusedIndex: number;
+  activityMap: Map<string, string>;
 }
 
-const STATUS_PRIORITY: Record<SessionStatus, number> = {
+export const STATUS_PRIORITY: Record<SessionStatus, number> = {
   waiting_input: 0,
   waiting_approval: 1,
   error: 2,
@@ -17,7 +18,7 @@ const STATUS_PRIORITY: Record<SessionStatus, number> = {
   dead: 5,
 };
 
-function sortByPriority(sessions: SessionSnapshot[]): SessionSnapshot[] {
+export function sortByPriority(sessions: SessionSnapshot[]): SessionSnapshot[] {
   return [...sessions].sort((a, b) => {
     const pa = STATUS_PRIORITY[a.status] ?? 99;
     const pb = STATUS_PRIORITY[b.status] ?? 99;
@@ -26,17 +27,15 @@ function sortByPriority(sessions: SessionSnapshot[]): SessionSnapshot[] {
   });
 }
 
-export function Dashboard({ sessions, focusedIndex }: DashboardProps) {
+export function Dashboard({ sessions, focusedIndex, activityMap }: DashboardProps) {
   const { stdout } = useStdout();
   const termWidth = stdout?.columns ?? 80;
-  const tileWidth = 32;
+  const tileWidth = 32; // 30 tile + 2 gap
   const cols = Math.max(1, Math.floor(termWidth / tileWidth));
 
-  const sorted = sortByPriority(sessions);
-
   const rows: SessionSnapshot[][] = [];
-  for (let i = 0; i < sorted.length; i += cols) {
-    rows.push(sorted.slice(i, i + cols));
+  for (let i = 0; i < sessions.length; i += cols) {
+    rows.push(sessions.slice(i, i + cols));
   }
 
   return (
@@ -50,6 +49,7 @@ export function Dashboard({ sessions, focusedIndex }: DashboardProps) {
                 key={session.id}
                 session={session}
                 focused={idx === focusedIndex}
+                activityText={activityMap.get(session.id)}
               />
             );
           })}

@@ -1,41 +1,30 @@
 # Changelog
 
-All notable changes to Endeavor PM IDE will be documented in this file.
+## [0.3.0] - 2026-03-23
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Changed
+- Complete rewrite as a TUI session observatory
+- Replaced CLI coordination layer with Ink-based terminal dashboard
+- Sessions displayed as color-coded tiles sorted by attention priority
+- Added ObserverAdapter: auto-discovers running Claude processes via process scanning
+- Added LauncherAdapter: spawn new Claude sessions with label and initial prompt
+- Added FocusView: live event stream for a selected session
+- Added SpawnDialog: interactive form to launch sessions
+- Added Tab navigation to jump to next session waiting for input
+- `--attach` flag auto-focuses highest-priority waiting session on launch
+- Moved storage from project-local (`.endeavor/`) to global (`~/.endeavor/`)
+- Entity model simplified to `sessions` + `session_events` (2 tables)
 
-## [Unreleased]
+### Removed
+- `packages/cli` and all `endeavor` CLI commands (init, assign, decide, depend, handoff, done, next)
+- `packages/daemon`
+- Work items, decisions, dependencies, handoffs, done-criteria entity model
 
-### Planned
-- MCP daemon with file watching, chunking, and indexing
-- Semantic search via vector embeddings (OpenAI text-embedding-3-small)
-- Token-optimized context packing (`getContext`, `logUsage`, `listProjects`, `ping` tools)
-- Setup wizard for Claude Desktop and Cursor configuration
-- Project templates: Research, Software, Hardware, General
-- Auto-generated `CONTEXT.md` per project
-- Task tracking (backlog / in-progress / done)
-- Electron desktop app with tabbed AI interfaces (Claude, ChatGPT, Perplexity)
-- Cost tracking and budget management dashboard
-- REST + WebSocket internal API
+## [0.2.0]
 
----
+Terminal-native coordination layer for parallel Claude Code sessions.
+CLI with work item tracking, decisions, dependencies, and handoffs.
 
-## [0.1.0] - 2026-02-18
+## [0.1.0]
 
-### Added
-- Monorepo scaffolding with npm workspaces
-- TypeScript configuration across all packages (ES2022, NodeNext modules)
-- Package structure:
-  - `apps/desktop` — Electron + React desktop application shell
-  - `services/mcp-daemon` — background daemon skeleton (MCP server, file indexer, context engine)
-  - `packages/shared-types` — shared TypeScript contracts and DTOs (`HealthStatus`, `DaemonHealthResponse`, `ProjectSummary`)
-  - `packages/context-engine` — context selection, compression, and token budgeting skeleton
-  - `packages/cli` — `endeavor` CLI entrypoint
-  - `packages/integrations` — Claude Desktop and Cursor configuration helpers
-- Root-level npm scripts: `build`, `typecheck`, `clean`, `dev:daemon`, `dev:desktop`, `dev:cli`
-- Product Requirements Document (PRD v3) with 4-phase roadmap
-- Execution Backlog v1.0 with 10-sprint release schedule
-
-[Unreleased]: https://github.com/lewisgoing/Endeavor-PM-IDE/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/lewisgoing/Endeavor-PM-IDE/releases/tag/v0.1.0
+Initial monorepo scaffolding.

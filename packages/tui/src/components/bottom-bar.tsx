@@ -1,33 +1,30 @@
 import React from 'react';
 import { Box, Text } from 'ink';
+import { THEME } from '../theme.js';
 
 interface BottomBarProps {
   mode: 'dashboard' | 'focus' | 'spawn';
 }
 
 export function BottomBar({ mode }: BottomBarProps) {
+  if (mode === 'focus') return null;
+
   return (
-    <Box borderStyle="single" paddingX={1}>
+    <Box borderStyle="single" borderColor={THEME.border} paddingX={1}>
       {mode === 'dashboard' && (
         <>
-          <Text dimColor>{'↑↓/jk'}</Text><Text> navigate  </Text>
-          <Text dimColor>Enter</Text><Text> focus  </Text>
-          <Text dimColor>N</Text><Text> new  </Text>
-          <Text dimColor>K</Text><Text> kill  </Text>
-          <Text dimColor>Tab</Text><Text> next waiting  </Text>
-          <Text dimColor>Q</Text><Text> quit</Text>
-        </>
-      )}
-      {mode === 'focus' && (
-        <>
-          <Text dimColor>ESC</Text><Text> back to dashboard  </Text>
-          <Text dimColor>Type</Text><Text> to respond</Text>
+          <Text color={THEME.textDim}>{'←→↑↓'}</Text><Text color={THEME.text}> navigate  </Text>
+          <Text color={THEME.textDim}>Enter</Text><Text color={THEME.text}> focus  </Text>
+          <Text color={THEME.textDim}>N</Text><Text color={THEME.text}> new  </Text>
+          <Text color={THEME.textDim}>K</Text><Text color={THEME.text}> kill  </Text>
+          <Text color={THEME.textDim}>Tab</Text><Text color={THEME.text}> next waiting  </Text>
+          <Text color={THEME.textDim}>Q</Text><Text color={THEME.text}> quit</Text>
         </>
       )}
       {mode === 'spawn' && (
         <>
-          <Text dimColor>ESC</Text><Text> cancel  </Text>
-          <Text dimColor>Enter</Text><Text> confirm</Text>
+          <Text color={THEME.textDim}>ESC</Text><Text color={THEME.text}> cancel  </Text>
+          <Text color={THEME.textDim}>Enter</Text><Text color={THEME.text}> confirm</Text>
         </>
       )}
     </Box>

@@ -1,54 +1,61 @@
 # Endeavor
 
-Terminal-native coordination for parallel Claude Code work.
+A TUI for monitoring and managing Claude Code sessions.
 
-When you're running 2-4 Claude Code sessions or subagents in parallel, Endeavor tracks:
-- **Who** is working on **what**
-- **What** was decided and why
-- **What** depends on what
-- **What** handoff is pending
-- **What** makes a task done
+When you're running multiple Claude Code sessions in parallel, Endeavor gives you a single terminal view showing every session sorted by what needs your attention first.
+
+## What it looks like
+
+A grid of session tiles, each showing:
+- Status (waiting for input, waiting approval, active, error, done)
+- Label and working directory
+- Git branch
+- Cost, model, token counts
+- Last activity preview
+
+Sessions are sorted by priority: **waiting for input** surfaces first, then waiting approval, errors, active, and done.
 
 ## Quick start
 
 ```bash
-npm install -g @endeavor/cli    # or use npx
-
-cd your-project
-endeavor init
-endeavor assign "Add auth middleware" --to @agent-1 --branch feature/auth
-endeavor assign "Write API tests" --criteria "all endpoints covered"
-endeavor depend w_002 w_001      # tests depend on auth
-endeavor status                  # see the full picture
+git clone https://github.com/lewisnsmith/endeavor
+cd endeavor
+npm install
+npm run dev
 ```
 
-## Commands
+## Keybindings
 
-| Command | What it does |
-|---------|-------------|
-| `endeavor init` | Initialize coordination in current project |
-| `endeavor status` | Show all work items, handoffs, recent decisions |
-| `endeavor assign <desc>` | Create a work item, optionally assign to an agent |
-| `endeavor decide <summary>` | Record a decision with rationale |
-| `endeavor depend <item> <on>` | Declare a blocking dependency |
-| `endeavor handoff <to> <summary>` | Hand off context to another agent/session |
-| `endeavor done <item>` | Check criteria and mark complete |
-| `endeavor next` | Show what's unblocked and ready |
+| Key | Action |
+|-----|--------|
+| `←→↑↓` | Navigate tiles |
+| `Enter` | Focus session (event stream view) |
+| `Tab` | Jump to next session waiting for input |
+| `N` | Spawn a new Claude session |
+| `K` | Kill focused session |
+| `Esc` | Back to dashboard |
+| `Q` | Quit |
 
-Every command supports `--json` for machine consumption.
+## Flags
+
+```bash
+npm run dev -- --attach    # auto-focus the highest-priority waiting session on launch
+```
 
 ## How it works
 
-- **Local-first**: Single SQLite file at `.endeavor/endeavor.db` in your project root
-- **Worktree-aware**: All git worktrees share one coordination database
-- **Concurrent-safe**: WAL mode handles parallel agent access
-- **No daemon required**: Each command opens the DB, does its work, exits
+- **ObserverAdapter** scans for already-running Claude processes every 5 seconds and surfaces them as tiles automatically — no manual registration needed
+- **LauncherAdapter** spawns new Claude sessions with a working directory, label, and optional initial prompt
+- **SessionManager** coordinates both adapters and emits a live event stream per session
+- Storage is a single SQLite file at `~/.endeavor/endeavor.db` (global, not project-local)
+- WAL mode handles concurrent access from multiple sessions safely
 
-## Design philosophy
+## Packages
 
-Endeavor is not a project manager, memory layer, or AI dashboard.
-It's the lightest possible coordination layer that lets parallel Claude Code
-sessions stay aware of each other without leaving the terminal.
+| Package | Description |
+|---------|-------------|
+| `packages/core` | Domain logic: types, storage, session manager, adapters, stream parser |
+| `packages/tui` | Ink-based terminal UI: dashboard, tiles, focus view, spawn dialog |
 
 ## Development
 

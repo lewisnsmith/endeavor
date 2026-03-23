@@ -28,7 +28,7 @@ vi.mock('node:child_process', () => ({
     (proc as any).kill = vi.fn();
     // Simulate process completing after a tick
     setTimeout(() => {
-      (proc as any).stdout.push('{"type":"result","session_id":"sess_abc123","cost":0.01}\n');
+      (proc as any).stdout.push('{"type":"result","subtype":"success","session_id":"sess_abc123","total_cost_usd":0.01,"result":"Hello!","usage":{"input_tokens":10,"output_tokens":5}}\n');
       (proc as any).stdout.push(null); // EOF
       proc.emit('exit', 0, null);
     }, 10);

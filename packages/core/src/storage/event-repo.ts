@@ -41,6 +41,33 @@ export class SessionEventRepository {
     return { id, sessionId: params.sessionId, type: params.type, payload: params.payload, createdAt: now };
   }
 
+  getLastResponseBySession(sessionIds: string[]): Map<string, string> {
+    if (sessionIds.length === 0) return new Map();
+    const placeholders = sessionIds.map(() => '?').join(',');
+    const rows = this.db.prepare(
+      `SELECT e.session_id, e.payload FROM session_events e
+       INNER JOIN (
+         SELECT session_id, MAX(created_at) as max_created
+         FROM session_events
+         WHERE session_id IN (${placeholders}) AND type = 'response'
+         GROUP BY session_id
+       ) latest ON e.session_id = latest.session_id AND e.created_at = latest.max_created
+       WHERE e.type = 'response'`
+    ).all(...sessionIds) as { session_id: string; payload: string }[];
+
+    const result = new Map<string, string>();
+    for (const row of rows) {
+      try {
+        const p = JSON.parse(row.payload);
+        const text = p.text ?? p.message?.content?.[0]?.text ?? p.result ?? '';
+        result.set(row.session_id, typeof text === 'string' ? text : JSON.stringify(text));
+      } catch {
+        result.set(row.session_id, '');
+      }
+    }
+    return result;
+  }
+
   listBySession(sessionId: string, opts?: { limit?: number }): SessionEvent[] {
     const limit = opts?.limit;
     const query = limit

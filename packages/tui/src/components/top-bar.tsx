@@ -1,6 +1,7 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import type { SessionSnapshot } from '@endeavor/core';
+import { THEME } from '../theme.js';
 
 interface TopBarProps {
   sessions: SessionSnapshot[];
@@ -12,14 +13,15 @@ export function TopBar({ sessions }: TopBarProps) {
   const totalCost = sessions.reduce((sum, s) => sum + s.totalCostUsd, 0);
 
   return (
-    <Box borderStyle="single" paddingX={1}>
-      <Text bold color="cyan">ENDEAVOR</Text>
+    <Box borderStyle="single" borderColor={THEME.border} paddingX={1}>
+      <Text bold color={THEME.accent}>{THEME.sparkle} </Text>
+      <Text bold color={THEME.text}>ENDEAVOR</Text>
       <Box flexGrow={1} />
-      <Text>{active} active</Text>
-      <Text>  </Text>
-      {waiting > 0 && <Text color="red">{waiting} waiting</Text>}
-      {waiting > 0 && <Text>  </Text>}
-      <Text color="green">${totalCost.toFixed(2)}</Text>
+      <Text color={THEME.active}>▪ {active} active</Text>
+      <Text color={THEME.textMuted}>  </Text>
+      {waiting > 0 && <Text color={THEME.waiting}>▪ {waiting} waiting</Text>}
+      {waiting > 0 && <Text color={THEME.textMuted}>  </Text>}
+      <Text color={THEME.cost}>${totalCost.toFixed(2)}</Text>
     </Box>
   );
 }

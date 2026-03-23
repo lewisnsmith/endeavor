@@ -2,6 +2,7 @@ import type { SessionAdapter, AdapterCapabilities, SessionSnapshot } from '@ende
 import type { SessionRepository } from '@endeavor/core';
 import type { Logger } from '@endeavor/core';
 import { scanProcesses, getBranch } from './process-scanner.js';
+import { repoName } from '../theme.js';
 
 export interface ObserverDeps {
   sessions: SessionRepository;
@@ -44,7 +45,7 @@ export class ObserverAdapter implements SessionAdapter {
       const branch = proc.cwd ? getBranch(proc.cwd) : null;
       this.sessions.create({
         source: 'observed',
-        label: `observed-${proc.pid}`,
+        label: `${proc.cwd ? repoName(proc.cwd) : 'unknown'} (${proc.pid})`,
         cwd: proc.cwd ?? 'unknown',
         pid: proc.pid,
         branch: branch ?? undefined,
