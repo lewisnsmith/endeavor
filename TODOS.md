@@ -29,3 +29,27 @@ Add indexes in the initial migration:
 - Set line-length limit (1MB) on stream parser to prevent OOM
 **Effort:** S
 **Context:** Identified in CEO plan review, Section 2 (Error & Rescue Map) — 3 critical gaps
+
+## P3 — Future features
+
+### Coordination layer for agent teams
+Expand Endeavor from a passive observer into an active coordinator for teams of Claude agents working in parallel:
+- Task assignment: route incoming work to idle or best-suited agents
+- Shared context broadcast: push relevant state updates to all active agents
+- Handoff protocol: structured inter-agent handoffs (maps to existing handoff model in `.endeavor/`)
+- Conflict detection: warn when two agents are editing the same file or working on overlapping tasks
+- Team-level cost and progress tracking in the dashboard
+**Effort:** L
+**Blocked by:** Core observer/launcher working end-to-end
+**Builds on:** Current `SessionManager`, existing handoff/dependency tables from coordination-layer pivot
+
+### Improved TUI graphics and activity visualization
+Richer visual feedback so you can understand at a glance what a session or team of agents is doing:
+- Activity timeline strip per session tile (sparkline of events over last N minutes)
+- Tool-use breakdown: small icons or bars showing proportion of bash/read/write/search calls
+- Cost burn rate indicator (per-session and total) with configurable alert threshold
+- Session dependency graph: show which sessions share files or have explicit handoff links
+- Diff preview: inline minimap of recent file changes without leaving the TUI
+**Effort:** M
+**Blocked by:** Stream parser producing structured events reliably
+**Depends on:** Improved event schema from stream-json research spike (P1)
