@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text } from 'ink';
 import type { SessionSnapshot } from '@endeavor/core';
-import { THEME, statusColor, statusLabel, repoName } from '../theme.js';
+import { THEME, statusColor, statusLabel, repoName, ROLE_SPRITES } from '../theme.js';
 
 interface SessionTileProps {
   session: SessionSnapshot;
@@ -21,13 +21,13 @@ function relativeTime(startedAt: string): string {
 
 function truncate(s: string, len: number): string {
   if (s.length <= len) return s;
-  return s.slice(0, len - 1) + '…';
+  return s.slice(0, len - 1) + '\u2026';
 }
 
 function formatTokens(input: number, output: number): string {
   const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
   if (input === 0 && output === 0) return '';
-  return `${fmt(input)}↑ ${fmt(output)}↓`;
+  return `${fmt(input)}\u2191 ${fmt(output)}\u2193`;
 }
 
 const isDone = (s: SessionSnapshot) => s.status === 'completed' || s.status === 'dead';
@@ -43,19 +43,39 @@ export function SessionTile({ session, focused, activityText }: SessionTileProps
   const project = repoName(session.cwd);
   const branch = session.branch;
 
-  // Activity preview — up to 3 lines
+  // Pulse animation for active sessions
+  const [pulse, setPulse] = useState(false);
+  useEffect(() => {
+    if (session.status !== 'active') return;
+    const interval = setInterval(() => setPulse((p) => !p), 500);
+    return () => clearInterval(interval);
+  }, [session.status]);
+
+  const pulseIndicator = session.status === 'active'
+    ? (pulse ? '\u25AA' : '\u25AB')
+    : statusLabel(session.status).charAt(0) === '\u25AA' || statusLabel(session.status).charAt(0) === '\u25AB'
+      ? statusLabel(session.status).charAt(0)
+      : '\u25AA';
+
+  // Role sprite
+  const meta = session.metadata as Record<string, unknown>;
+  const roleName = (meta?.agentRole as string) ?? 'general';
+  const role = ROLE_SPRITES[roleName] ?? ROLE_SPRITES.general;
+
+  // Auto-title or fallback to label
+  const displayTitle = (meta?.autoTitle as string) ?? session.label;
+
+  // Activity preview — up to 2 lines
   const activityLines: string[] = [];
   if (activityText) {
     const cleaned = activityText.replace(/\n+/g, ' ').trim();
     if (cleaned) {
-      for (let i = 0; i < 3 && i * innerW < cleaned.length; i++) {
+      for (let i = 0; i < 2 && i * innerW < cleaned.length; i++) {
         activityLines.push(truncate(cleaned.slice(i * innerW, (i + 1) * innerW), innerW));
       }
     }
   }
-
-  // Pad activity to always have 3 lines for consistent height
-  while (activityLines.length < 3) {
+  while (activityLines.length < 2) {
     activityLines.push('');
   }
 
@@ -68,37 +88,42 @@ export function SessionTile({ session, focused, activityText }: SessionTileProps
       flexDirection="column"
       paddingX={1}
     >
-      {/* Row 1: status + time */}
+      {/* Row 1: role icon + label + elapsed */}
       <Box justifyContent="space-between">
-        <Text color={color} bold dimColor={dim}>{statusLabel(session.status)}</Text>
+        <Text color={THEME.accent} dimColor={dim}>{role.icon} <Text color={THEME.textDim}>{role.label}</Text></Text>
         <Text color={THEME.textMuted}>{relativeTime(session.startedAt)}</Text>
       </Box>
 
-      {/* Row 2: label */}
-      <Text color={focused ? THEME.text : THEME.textDim} bold={focused} dimColor={dim}>
-        {truncate(session.label, innerW)}
+      {/* Row 2: status with pulse */}
+      <Text color={color} bold dimColor={dim}>
+        {pulseIndicator} {statusLabel(session.status).slice(2)}
       </Text>
 
-      {/* Row 3: repo name */}
+      {/* Row 3: auto-title */}
+      <Text color={focused ? THEME.text : THEME.textDim} bold={focused} dimColor={dim}>
+        {truncate(displayTitle, innerW)}
+      </Text>
+
+      {/* Row 4: repo name */}
       <Text color={THEME.accent}>{truncate(project, innerW)}</Text>
 
-      {/* Row 4: branch */}
+      {/* Row 5: branch */}
       <Text color={THEME.textDim}>
         {branch ? truncate(branch, innerW) : ''}
       </Text>
 
-      {/* Row 5: cost + model */}
+      {/* Row 6: cost + model */}
       <Box justifyContent="space-between">
         <Text color={THEME.cost} dimColor={dim}>${session.totalCostUsd.toFixed(2)}</Text>
         <Text color={THEME.textMuted}>{session.model ? truncate(session.model, 14) : ''}</Text>
       </Box>
 
-      {/* Row 6: tokens */}
+      {/* Row 7: tokens */}
       <Text color={THEME.textMuted}>
         {formatTokens(session.inputTokens, session.outputTokens)}
       </Text>
 
-      {/* Rows 7-9: activity preview */}
+      {/* Rows 8-9: activity preview */}
       {activityLines.map((line, i) => (
         <Text key={i} color={THEME.textDim}>{line}</Text>
       ))}

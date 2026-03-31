@@ -12,7 +12,7 @@ interface SpawnDialogProps {
   onCancel: () => void;
 }
 
-type Step = 'project' | 'label' | 'prompt';
+type Step = 'project' | 'prompt';
 
 const GITHUB_DIR = join(homedir(), 'Documents', 'GitHub');
 
@@ -38,7 +38,6 @@ export function SpawnDialog({ defaultCwd, onSpawn, onCancel }: SpawnDialogProps)
   const [step, setStep] = useState<Step>('project');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedProject, setSelectedProject] = useState('');
-  const [label, setLabel] = useState('');
   const [prompt, setPrompt] = useState('');
 
   useInput((input, key) => {
@@ -53,19 +52,15 @@ export function SpawnDialog({ defaultCwd, onSpawn, onCancel }: SpawnDialogProps)
       }
       if (key.return && repos.length > 0) {
         setSelectedProject(repos[selectedIndex]);
-        setStep('label');
+        setStep('prompt');
       }
     }
   });
 
-  const handleLabelSubmit = () => {
-    setStep('prompt');
-  };
-
   const handlePromptSubmit = (value: string) => {
     if (value.trim()) {
       const cwd = join(GITHUB_DIR, selectedProject);
-      onSpawn(cwd, label || `session-${Date.now()}`, value.trim());
+      onSpawn(cwd, `session-${Date.now()}`, value.trim());
     }
   };
 
@@ -95,7 +90,7 @@ export function SpawnDialog({ defaultCwd, onSpawn, onCancel }: SpawnDialogProps)
             return (
               <Box key={repo}>
                 <Text color={isFocused ? THEME.accent : THEME.textMuted}>
-                  {isFocused ? '▸ ' : '  '}
+                  {isFocused ? '\u25B8 ' : '  '}
                 </Text>
                 <Text color={isFocused ? THEME.text : THEME.textDim} bold={isFocused}>
                   {repo}
@@ -107,22 +102,9 @@ export function SpawnDialog({ defaultCwd, onSpawn, onCancel }: SpawnDialogProps)
             <Text color={THEME.textMuted}>  ({repos.length} repos)</Text>
           )}
           <Box marginTop={1}>
-            <Text color={THEME.textMuted}>↑↓</Text><Text color={THEME.textDim}> navigate  </Text>
+            <Text color={THEME.textMuted}>{'\u2191\u2193'}</Text><Text color={THEME.textDim}> navigate  </Text>
             <Text color={THEME.textMuted}>Enter</Text><Text color={THEME.textDim}> select  </Text>
             <Text color={THEME.textMuted}>ESC</Text><Text color={THEME.textDim}> cancel</Text>
-          </Box>
-        </>
-      )}
-
-      {step === 'label' && (
-        <>
-          <Box>
-            <Text color={THEME.accent}>Project: </Text>
-            <Text color={THEME.text} bold>{selectedProject}</Text>
-          </Box>
-          <Box marginTop={1}>
-            <Text color={THEME.textDim}>Label: </Text>
-            <TextInput value={label} onChange={setLabel} onSubmit={handleLabelSubmit} placeholder="(auto-generated)" />
           </Box>
         </>
       )}
@@ -132,10 +114,6 @@ export function SpawnDialog({ defaultCwd, onSpawn, onCancel }: SpawnDialogProps)
           <Box>
             <Text color={THEME.accent}>Project: </Text>
             <Text color={THEME.text} bold>{selectedProject}</Text>
-          </Box>
-          <Box>
-            <Text color={THEME.textDim}>Label: </Text>
-            <Text color={THEME.textDim}>{label || '(auto)'}</Text>
           </Box>
           <Box marginTop={1}>
             <Text color={THEME.accent}>Task: </Text>

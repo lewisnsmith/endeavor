@@ -15,6 +15,14 @@ export const THEME = {
   sparkle:     '✻',
 } as const;
 
+export const ROLE_SPRITES: Record<string, { icon: string; label: string }> = {
+  architect:  { icon: '\u273B', label: 'ARCHITECT' },
+  executor:   { icon: '\u25B6', label: 'EXECUTOR' },
+  reviewer:   { icon: '\u2714', label: 'REVIEWER' },
+  researcher: { icon: '\u25C7', label: 'RESEARCHER' },
+  general:    { icon: '\u26A1', label: 'AGENT' },
+};
+
 export function statusColor(status: string): string {
   switch (status) {
     case 'active':           return THEME.active;

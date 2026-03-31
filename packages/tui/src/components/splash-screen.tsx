@@ -9,34 +9,33 @@ const DISPLAY_ROWS = 14;
 const SHUTTLE_LINES = [
   '    /\\    ',
   '   /  \\   ',
-  '  | ✻  |  ',
+  '  | \\/ |  ',
   '  |    |  ',
-  '  /|  |\\  ',
-  ' / |  | \\ ',
+  '  |/\\  |  ',
+  '  / || \\  ',
   '   ||||   ',
 ];
-const SHUTTLE_HEIGHT = SHUTTLE_LINES.length; // 7
+const SHUTTLE_HEIGHT = SHUTTLE_LINES.length;
 
-// Shuttle starts at this row (bottom), rises to row 0 (top)
-const SHUTTLE_START_ROW = DISPLAY_ROWS - SHUTTLE_HEIGHT - 1; // 6
+const SHUTTLE_START_ROW = DISPLAY_ROWS - SHUTTLE_HEIGHT - 1;
 
-const FLAMES = ['  /~~~~\\  ', ' /~~~~~~\\ '];
+const FLAMES = ['  /\\/\\/\\  ', '  ||||||  '];
 
 const STAR_ROWS = [
-  '  *    ·    .   *    .  ·   *  .  ·  ',
-  '·    *    .    *    ·    .    *    .  ',
-  '   .    ·   *    .    *    .    ·   *',
-  '*    .    *    ·    *    .    ·    . ',
-  '  ·    *   .    ·    *   .    *    ·',
-  '.    ·    *    .    ·    *    .    · ',
-  '  *   .    ·    *    .   ·    *   .  ',
-  '·    *    .    *    ·    .    *    . ',
-  '   .    ·   *    .    *    .    ·   ',
-  '*    .    *    ·    *    .    ·    . ',
-  '  ·    *   .    ·    *   .    *     ',
-  '.    ·    *    .    ·    *    .    ·.',
-  '  *   .    ·    *    .   ·    *   .  ',
-  '·    *    .    *    ·    .    *    . ',
+  '  ·    ╌    ·   │    ╌  ·   │  ╌  ·  ',
+  '╌    ·    │    ·    ╌    ·    │    ╌  ',
+  '   ·    ╌   │    ·    ╌    │    ╌   · ',
+  '│    ·    ╌    │    ·    ╌    ·    ╌  ',
+  '  ╌    ·   │    ╌    ·   ╌    │    · ',
+  '·    ╌    │    ·    ╌    │    ·    ╌  ',
+  '  │   ·    ╌    │    ·   ╌    │   ·  ',
+  '╌    │    ·    ╌    ·    │    ╌    ·  ',
+  '   ·    ╌   │    ·    ╌    │    ╌    ',
+  '│    ·    ╌    │    ·    ╌    ·    ╌  ',
+  '  ╌    │   ·    ╌    │   ·    ╌      ',
+  '·    ╌    │    ·    ╌    │    ·    ╌· ',
+  '  │   ·    ╌    │    ·   ╌    │   ·  ',
+  '╌    │    ·    ╌    ·    │    ╌    ·  ',
 ];
 
 function centerLine(s: string, width: number): string {
@@ -84,7 +83,6 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
     }
   }, [frame, callDone]);
 
-  // Shuttle rises from SHUTTLE_START_ROW → 0 over TOTAL_FRAMES
   const shuttleTopRow = Math.max(
     0,
     Math.round(SHUTTLE_START_ROW * (1 - frame / (TOTAL_FRAMES - 1))),
@@ -97,13 +95,12 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
 
   return (
     <Box flexDirection="column" width={termWidth}>
-      {/* Animation area */}
       {Array.from({ length: DISPLAY_ROWS }, (_, row) => {
         const shuttleLineIdx = row - shuttleTopRow;
 
         if (shuttleLineIdx >= 0 && shuttleLineIdx < SHUTTLE_HEIGHT) {
           return (
-            <Text key={row}>
+            <Text key={row} color={THEME.accent}>
               {centerLine(SHUTTLE_LINES[shuttleLineIdx], termWidth)}
             </Text>
           );
@@ -124,16 +121,15 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
         );
       })}
 
-      {/* Phrase area */}
       <Box flexDirection="column" marginTop={1}>
         <Box justifyContent="center">
-          <Text color={THEME.textDim}>ignition sequence start.</Text>
+          <Text color={THEME.textDim}>systems initializing.</Text>
         </Box>
         <Box justifyContent="center">
-          <Text color={THEME.text}>{showPhrase2 ? 'the observatory awakens.' : ' '}</Text>
+          <Text color={THEME.text}>{showPhrase2 ? 'agents standing by.' : ' '}</Text>
         </Box>
         <Box justifyContent="center">
-          <Text color={THEME.accent} bold>{showPhrase3 ? 'endeavor online —' : ' '}</Text>
+          <Text color={THEME.accent} bold>{showPhrase3 ? 'endeavor online \u2014' : ' '}</Text>
         </Box>
       </Box>
     </Box>

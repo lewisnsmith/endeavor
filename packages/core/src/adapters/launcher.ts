@@ -180,6 +180,80 @@ export class LauncherAdapter implements SessionAdapter {
     });
   }
 
+  // ── Auto-title & role detection helpers ────────────────────────────
+
+  private extractAutoTitle(block: Record<string, unknown>): string | null {
+    if (block.type === 'tool_use') {
+      const name = block.name as string;
+      const input = block.input as Record<string, unknown> | undefined;
+      if (input) {
+        const filePath = (input.file_path ?? input.path ?? input.command ?? '') as string;
+        if (filePath) {
+          const short = filePath.split('/').pop() ?? filePath;
+          return `${name} ${short}`.slice(0, 40);
+        }
+      }
+      return name.slice(0, 40);
+    }
+    if (block.type === 'text') {
+      const text = (block.text as string).trim();
+      if (!text) return null;
+      // Take first sentence
+      const match = text.match(/^[^.!?\n]+[.!?]?/);
+      const sentence = match ? match[0].trim() : text;
+      return sentence.slice(0, 40);
+    }
+    return null;
+  }
+
+  private static readonly ROLE_MAP: Record<string, string> = {
+    Read: 'researcher', Grep: 'researcher', Glob: 'researcher', WebSearch: 'researcher',
+    Edit: 'executor', Write: 'executor',
+    Bash: 'general', // refined below for test/lint
+  };
+
+  private inferRole(sessionId: string, toolName: string, input?: Record<string, unknown>): void {
+    const session = this.sessions.getById(sessionId);
+    if (!session) return;
+    const meta = { ...session.metadata } as Record<string, unknown>;
+    const history = (meta._toolHistory as string[] | undefined) ?? [];
+
+    let category = LauncherAdapter.ROLE_MAP[toolName] ?? 'general';
+    if (toolName === 'Bash' && input) {
+      const cmd = (input.command as string) ?? '';
+      if (/\b(test|vitest|jest|pytest|lint|eslint|tsc)\b/.test(cmd)) {
+        category = 'reviewer';
+      }
+    }
+
+    history.push(category);
+    if (history.length > 10) history.shift();
+    meta._toolHistory = history;
+
+    // Count categories in window
+    const counts: Record<string, number> = {};
+    for (const c of history) {
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
+    // If no tools yet (text-heavy), default architect
+    let bestRole = 'general';
+    let bestCount = 0;
+    for (const [role, count] of Object.entries(counts)) {
+      if (count > bestCount) { bestCount = count; bestRole = role; }
+    }
+    meta.agentRole = bestRole;
+    this.sessions.update(sessionId, { metadata: meta });
+  }
+
+  private setAutoTitle(sessionId: string, title: string): void {
+    const session = this.sessions.getById(sessionId);
+    if (!session) return;
+    const meta = { ...session.metadata } as Record<string, unknown>;
+    if (meta.autoTitle) return; // only set once
+    meta.autoTitle = title;
+    this.sessions.update(sessionId, { metadata: meta });
+  }
+
   // ── Stream event mapping ──────────────────────────────────────────
   //
   // Real stream-json event types (with --verbose):
@@ -224,6 +298,10 @@ export class LauncherAdapter implements SessionAdapter {
 
         // Extract text and tool_use blocks from content
         for (const block of content) {
+          // Auto-title: set from first meaningful block
+          const title = this.extractAutoTitle(block);
+          if (title) this.setAutoTitle(sessionId, title);
+
           if (block.type === 'text') {
             const event = this.events.create({
               sessionId,
@@ -232,6 +310,8 @@ export class LauncherAdapter implements SessionAdapter {
             });
             this.notifyListeners(sessionId, event);
           } else if (block.type === 'tool_use') {
+            // Agent role detection from tool usage
+            this.inferRole(sessionId, block.name as string, block.input as Record<string, unknown> | undefined);
             const event = this.events.create({
               sessionId,
               type: 'tool_use',
